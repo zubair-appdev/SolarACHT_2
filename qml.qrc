@@ -1,0 +1,17 @@
+<RCC>
+    <qresource prefix="/">
+        <file>main.qml</file>
+        <file>HomePage.qml</file>
+        <file>LoginPage.qml</file>
+        <file>SelectRolePage.qml</file>
+        <file>CreateUserPage.qml</file>
+        <file>ForgotPasswordAdminPage.qml</file>
+        <file>ForgotPasswordUserPage.qml</file>
+        <file>UpdateAdminUserPage.qml</file>
+        <file>DeleteUsersPage.qml</file>
+        <file>DataEntryPage.qml</file>
+        <file>MessageBox.qml</file>
+        <file>DetailsPage.qml</file>
+        <file>TestPage.qml</file>
+    </qresource>
+</RCC>
