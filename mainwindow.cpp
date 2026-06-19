@@ -396,6 +396,8 @@ void MainWindow::on_pushButton_valAdminForUserPass_clicked()
 
         ui->label_titleForChangePassword
                 ->setText("Recover User Account");
+        ui->lineEdit_admin->clear();
+        ui->lineEdit_adminPass->clear();
     }
     else
     {
@@ -640,12 +642,22 @@ void MainWindow::on_pushButton_dataEntry_clicked()
 
 void MainWindow::on_pushButton_uploadPatch_clicked()
 {
+      if(ui->lineEdit_cableName->text().trimmed().isEmpty())
+      {
+          QMessageBox::information(this,"Field Empty","Enter cable name");
+          return;
+      }
       openCsvFile("patch");
 }
 
 
 void MainWindow::on_pushButton_uploadCable_clicked()
 {
+    if(ui->lineEdit_cableName->text().trimmed().isEmpty())
+    {
+        QMessageBox::information(this,"Field Empty","Enter cable name");
+        return;
+    }
     openCsvFile("harness");
 }
 void MainWindow::openCsvFile(const QString &fileType)
@@ -828,40 +840,65 @@ bool MainWindow::savePatchToDb(const QString &cableName)
 
     QString create =
         "CREATE TABLE IF NOT EXISTS " + tableName + " ("
-                                                    "id INTEGER PRIMARY KEY AUTOINCREMENT,"
-                                                    "cable TEXT,"
-                                                    "userCon TEXT,"
-                                                    "userPin TEXT,"
-                                                    "patchCon TEXT,"
-                                                    "patchPin INTEGER"
-                                                    ")";
+        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "cable TEXT,"
+        "userCon TEXT,"
+        "userPin TEXT,"
+        "patchCon TEXT,"
+        "patchPin INTEGER"
+        ")";
 
-    if (!q.exec(create)) {
-        writeToNotes("❌ Failed to create table " + tableName + ": " + q.lastError().text());
+    if (!q.exec(create))
+    {
+        writeToNotes("❌ Failed to create table "
+                     + tableName + ": "
+                     + q.lastError().text());
+
         return false;
     }
 
     // Clear old data
-    q.exec("DELETE FROM " + tableName);
+    if(!q.exec("DELETE FROM " + tableName))
+    {
+        writeToNotes("❌ Failed to clear table "
+                     + tableName);
 
-    // Insert new rows
+        return false;
+    }
+
+    // ⭐ START TRANSACTION
+    db.transaction();
+
     q.prepare("INSERT INTO " + tableName +
-              "(cable, userCon, userPin, patchCon, patchPin) VALUES (?, ?, ?, ?, ?)");
+              "(cable, userCon, userPin, patchCon, patchPin) "
+              "VALUES (?, ?, ?, ?, ?)");
 
-    for (int i = 0; i < cableList.size(); i++) {
+    for (int i = 0; i < cableList.size(); i++)
+    {
         q.addBindValue(cableList[i]);
         q.addBindValue(userConList[i]);
         q.addBindValue(userPinList[i]);
         q.addBindValue(patchConList[i]);
         q.addBindValue(patchPinList[i]);
 
-        if (!q.exec()) {
-            writeToNotes("❌ Insert failed in " + tableName + ": " + q.lastError().text());
+        if (!q.exec())
+        {
+            db.rollback();
+
+            writeToNotes("❌ Insert failed in "
+                         + tableName + ": "
+                         + q.lastError().text());
+
             return false;
         }
     }
 
-    writeToNotes("✅ Patch data stored in table: " + tableName);
+    // ⭐ COMMIT ONCE
+    db.commit();
+
+    writeToNotes("✅ Patch data stored in table: "
+                 + tableName);
+
     return true;
 }
 bool MainWindow::validateHarnessData(const QVector<QString> &cableTemp,
@@ -962,7 +999,7 @@ bool MainWindow::validateHarnessData(const QVector<QString> &cableTemp,
                           .arg(expTemp[i])
                           .arg(voltTemp[i]);
 
-        writeToNotes(log);
+       // writeToNotes(log);
     }
 
     writeToNotes("###########################################");
@@ -995,13 +1032,19 @@ bool MainWindow::saveHarnessToDb(const QString &cableName,
                                                     "exp TEXT,"
                                                     "volt TEXT"
                                                     ")";
-
     if (!q.exec(create)) {
         writeToNotes("❌ Failed to create table " + tableName + ": " + q.lastError().text());
         return false;
     }
 
-    q.exec("DELETE FROM " + tableName);
+    if(!q.exec("DELETE FROM " + tableName))
+    {
+        writeToNotes("❌ Failed to clear table "
+                     + tableName);
+
+        return false;
+    }
+    db.transaction();
 
     q.prepare("INSERT INTO " + tableName +
               "(cable, sourceCon, sourcePin, destCon, destPin, exp, volt) "
@@ -1018,10 +1061,14 @@ bool MainWindow::saveHarnessToDb(const QString &cableName,
         q.addBindValue(voltTemp[i]);
 
         if (!q.exec()) {
+
+            db.rollback();
+
             writeToNotes("❌ Insert failed in " + tableName + ": " + q.lastError().text());
             return false;
         }
     }
+     db.commit();
 
     writeToNotes("✅ Harness data stored in table: " + tableName);
     return true;
@@ -1147,4 +1194,18 @@ QString MainWindow::convertExcelToCsv(const QString &xlsxFile)
 void MainWindow::on_pushButton_backToModes_clicked()
 {
     ui->stackedWidget->setCurrentIndex(4);
+}
+
+void MainWindow::on_pushButton_getDetails_clicked()
+{
+    ui->tabWidget->setCurrentIndex(0);
+    ui->stackedWidget->setCurrentIndex(11);
+}
+
+void MainWindow::on_tabWidget_tabBarClicked(int index)
+{
+    if(index == 2)
+    {
+        ui->stackedWidget->setCurrentIndex(10);
+    }
 }

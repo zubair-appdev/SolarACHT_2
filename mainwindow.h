@@ -131,6 +131,10 @@ private slots:
 
      void on_pushButton_backToModes_clicked();
 
+     void on_pushButton_getDetails_clicked();
+
+     void on_tabWidget_tabBarClicked(int index);
+
 private:
     Ui::MainWindow *ui;
     QSqlDatabase db;
@@ -150,6 +154,7 @@ private:
     QString m_inspectedBy;
     QString m_projectName;
     QString m_testType;
+
 
 };
 
