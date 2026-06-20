@@ -12,5 +12,13 @@
 
 &#x20;  ->tab widget to patch and harness data is started.
 
-&#x20;
+
+
+* Ver1.2------------------------------------------------
+
+&#x20;  ->TabWidget,Edit save buttons implemented.
+
+&#x20;  ->Avoid user to enter exists cableName.
+
+
 

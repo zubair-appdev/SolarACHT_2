@@ -19,6 +19,7 @@
 #include <QTemporaryDir>
 #include <QFile>
 #include <QDir>
+#include <QSqlTableModel>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -135,6 +136,22 @@ private slots:
 
      void on_tabWidget_tabBarClicked(int index);
 
+     void loadPatchTable(const QString &tableName);
+
+     void loadHarnessTable(const QString &tableName);
+
+     void on_pushButton_editTableView_clicked();
+
+     void on_pushButton_saveChanges_clicked();
+
+     void on_pushButton_revertChanges_clicked();
+
+     void on_pushButton_patchEdit_clicked();
+
+     void on_pushButton_patchSave_clicked();
+
+     void on_pushButton_patchCancel_clicked();
+
 private:
     Ui::MainWindow *ui;
     QSqlDatabase db;
@@ -154,6 +171,9 @@ private:
     QString m_inspectedBy;
     QString m_projectName;
     QString m_testType;
+
+    QSqlTableModel *patchModel;
+    QSqlTableModel *harnessModel;
 
 
 };

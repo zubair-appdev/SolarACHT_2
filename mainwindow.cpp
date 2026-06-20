@@ -647,6 +647,22 @@ void MainWindow::on_pushButton_uploadPatch_clicked()
           QMessageBox::information(this,"Field Empty","Enter cable name");
           return;
       }
+      QString tableName =
+                  ui->lineEdit_cableName->text().trimmed() + "_patch";
+
+          tableName.replace(" ", "_");
+
+          // CHECK TABLE EXISTS
+          if(db.tables().contains(tableName))
+          {
+              QMessageBox::warning(
+                          this,
+                          "Table Exists",
+                          "Cable name already exists.");
+
+              return;
+          }
+
       openCsvFile("patch");
 }
 
@@ -658,6 +674,18 @@ void MainWindow::on_pushButton_uploadCable_clicked()
         QMessageBox::information(this,"Field Empty","Enter cable name");
         return;
     }
+    QString tableName =
+                ui->lineEdit_cableName->text().trimmed() + "_harness";
+
+        tableName.replace(" ", "_");
+
+        // CHECK TABLE EXISTS
+        if(db.tables().contains(tableName))
+        {
+            QMessageBox::warning(this,"Table Exists", "Cable name already exists");
+
+            return;
+        }
     openCsvFile("harness");
 }
 void MainWindow::openCsvFile(const QString &fileType)
@@ -1150,7 +1178,6 @@ QString MainWindow::convertExcelToCsv(const QString &xlsxFile)
     QTextStream out(&csvFile);
 
     QXlsx::CellRange range = xlsx.dimension();
-
     int firstRow = range.firstRow();
     int lastRow  = range.lastRow();
 
@@ -1198,8 +1225,36 @@ void MainWindow::on_pushButton_backToModes_clicked()
 
 void MainWindow::on_pushButton_getDetails_clicked()
 {
+    QString tableName = ui->comboBox_fileNames->currentText();
+
+    if(tableName.isEmpty())
+    {
+        QMessageBox::information(this,"Missing file Name","Select file from dropdown");
+        return;
+    }
+
     ui->tabWidget->setCurrentIndex(0);
     ui->stackedWidget->setCurrentIndex(11);
+
+
+    //patch model
+    patchModel = new QSqlTableModel(this,db);
+    ui->tableView_patch->setModel(patchModel);
+    ui->tableView_patch->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    patchModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
+
+    //harness model
+    harnessModel = new QSqlTableModel(this,db);
+    ui->tableView_harness->setModel(harnessModel);
+    ui->tableView_harness->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    harnessModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
+    ui->tableView_harness->verticalHeader()->setVisible(true);
+
+    loadPatchTable(tableName+"_patch");
+    ui->label_fileName->setText(tableName);
+    loadHarnessTable(tableName+"_harness");
+    ui->label_fileNameH->setText(tableName);
+
 }
 
 void MainWindow::on_tabWidget_tabBarClicked(int index)
@@ -1208,4 +1263,161 @@ void MainWindow::on_tabWidget_tabBarClicked(int index)
     {
         ui->stackedWidget->setCurrentIndex(10);
     }
+}
+void MainWindow::loadPatchTable(const QString &tableName)
+{
+    qDebug()<<tableName<<"**********";
+    qDebug() << db.isOpen();
+    patchModel->setTable(tableName);
+
+    patchModel->select();
+
+    patchModel->setHeaderData(
+                1,
+                Qt::Horizontal,
+                "Cable");
+
+    patchModel->setHeaderData(
+                2,
+                Qt::Horizontal,
+                "User Con");
+
+    patchModel->setHeaderData(
+                3,
+                Qt::Horizontal,
+                "User Pin");
+
+    patchModel->setHeaderData(
+                4,
+                Qt::Horizontal,
+                "Patch Con");
+
+    patchModel->setHeaderData(
+                5,
+                Qt::Horizontal,
+                "Patch Pin");
+
+    // Hide ID column
+    ui->tableView_patch->hideColumn(0);
+}
+void MainWindow::loadHarnessTable(const QString &tableName)
+{
+    harnessModel->setTable(tableName);
+
+    harnessModel->select();
+
+    harnessModel->setHeaderData(
+                1,
+                Qt::Horizontal,
+                "Cable");
+
+    harnessModel->setHeaderData(
+                2,
+                Qt::Horizontal,
+                "Source Con");
+
+    harnessModel->setHeaderData(
+                3,
+                Qt::Horizontal,
+                "Source Pin");
+
+    harnessModel->setHeaderData(
+                4,
+                Qt::Horizontal,
+                "Dest Con");
+
+    harnessModel->setHeaderData(
+                5,
+                Qt::Horizontal,
+                "Dest Pin");
+
+    harnessModel->setHeaderData(
+                6,
+                Qt::Horizontal,
+                "Exp");
+
+    harnessModel->setHeaderData(
+                7,
+                Qt::Horizontal,
+                "Volt");
+
+    ui->tableView_harness->hideColumn(0);
+}
+
+void MainWindow::on_pushButton_editTableView_clicked()
+{
+    ui->tableView_harness->setEditTriggers(
+            QAbstractItemView::DoubleClicked |
+            QAbstractItemView::SelectedClicked |
+            QAbstractItemView::EditKeyPressed
+        );
+    QMessageBox::information(this,"Editable","Now you can edit table");
+}
+
+void MainWindow::on_pushButton_saveChanges_clicked()
+{
+
+    if(harnessModel->submitAll())
+    {
+        QMessageBox::information(
+                    this,
+                    "Success",
+                    "Changes saved successfully");
+
+        // Disable editing again
+        ui->tableView_harness->setEditTriggers(
+                    QAbstractItemView::NoEditTriggers);
+    }
+    else
+    {
+        QMessageBox::warning(
+                    this,
+                    "Error",
+                    harnessModel->lastError().text());
+    }
+}
+
+
+void MainWindow::on_pushButton_revertChanges_clicked()
+{
+    harnessModel->revertAll();
+    ui->tableView_harness->setEditTriggers(QAbstractItemView::NoEditTriggers);
+}
+
+void MainWindow::on_pushButton_patchEdit_clicked()
+{
+    ui->tableView_patch->setEditTriggers(
+            QAbstractItemView::DoubleClicked |
+            QAbstractItemView::SelectedClicked |
+            QAbstractItemView::EditKeyPressed
+        );
+    QMessageBox::information(this,"Editable","Now you can edit table");
+}
+
+void MainWindow::on_pushButton_patchSave_clicked()
+{
+    if(patchModel->submitAll())
+    {
+        QMessageBox::information(
+                    this,
+                    "Success",
+                    "Changes saved successfully");
+
+        // Disable editing again
+        ui->tableView_patch->setEditTriggers(
+                    QAbstractItemView::NoEditTriggers);
+    }
+    else
+    {
+        QMessageBox::warning(
+                    this,
+                    "Error",
+                    patchModel->lastError().text());
+    }
+}
+
+void MainWindow::on_pushButton_patchCancel_clicked()
+{
+   patchModel->revertAll();
+    ui->tableView_patch->setEditTriggers(QAbstractItemView::NoEditTriggers);
 }
