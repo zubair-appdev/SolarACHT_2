@@ -9,8 +9,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>552</width>
-    <height>524</height>
+    <width>554</width>
+    <height>483</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -53,7 +53,7 @@
     gridline-color: #d9d9d9;</string>
       </property>
       <property name="currentIndex">
-       <number>11</number>
+       <number>10</number>
       </property>
       <widget class="QWidget" name="page">
        <layout class="QGridLayout" name="gridLayout_2">
@@ -255,6 +255,9 @@ QLineEdit:focus
 {
     border-bottom: 2px solid black;
 }</string>
+                  </property>
+                  <property name="echoMode">
+                   <enum>QLineEdit::Password</enum>
                   </property>
                  </widget>
                 </item>
@@ -970,6 +973,9 @@ QLineEdit:focus
     border-bottom: 2px solid black;
 }</string>
                </property>
+               <property name="echoMode">
+                <enum>QLineEdit::Password</enum>
+               </property>
               </widget>
              </item>
             </layout>
@@ -1170,6 +1176,9 @@ QPushButton:pressed
               <font>
                <pointsize>12</pointsize>
               </font>
+             </property>
+             <property name="echoMode">
+              <enum>QLineEdit::Password</enum>
              </property>
              <property name="placeholderText">
               <string>Enter Master Key</string>
@@ -2134,6 +2143,9 @@ QPushButton:pressed
                  <pointsize>12</pointsize>
                 </font>
                </property>
+               <property name="echoMode">
+                <enum>QLineEdit::Password</enum>
+               </property>
               </widget>
              </item>
             </layout>
@@ -2364,6 +2376,9 @@ QPushButton:pressed
               <font>
                <pointsize>12</pointsize>
               </font>
+             </property>
+             <property name="echoMode">
+              <enum>QLineEdit::Password</enum>
              </property>
              <property name="placeholderText">
               <string>Enter Master Key</string>
@@ -2633,6 +2648,9 @@ QPushButton:pressed
                <pointsize>12</pointsize>
               </font>
              </property>
+             <property name="echoMode">
+              <enum>QLineEdit::Password</enum>
+             </property>
              <property name="placeholderText">
               <string>New Password</string>
              </property>
@@ -2644,6 +2662,9 @@ QPushButton:pressed
               <font>
                <pointsize>12</pointsize>
               </font>
+             </property>
+             <property name="echoMode">
+              <enum>QLineEdit::Password</enum>
              </property>
              <property name="placeholderText">
               <string>Confirm Password</string>
@@ -3568,7 +3589,7 @@ QPushButton:pressed
            <enum>QTabWidget::Triangular</enum>
           </property>
           <property name="currentIndex">
-           <number>1</number>
+           <number>0</number>
           </property>
           <widget class="QWidget" name="tab_patch">
            <attribute name="title">
@@ -4129,6 +4150,261 @@ QPushButton:pressed
         </item>
        </layout>
       </widget>
+      <widget class="QWidget" name="page_test">
+       <layout class="QGridLayout" name="gridLayout_15">
+        <item row="1" column="0">
+         <layout class="QVBoxLayout" name="verticalLayout_22">
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_12">
+            <item>
+             <spacer name="horizontalSpacer_28">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
+             <widget class="QComboBox" name="comboBox_ports">
+              <property name="font">
+               <font>
+                <pointsize>12</pointsize>
+               </font>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="pushButton_refresh">
+              <property name="font">
+               <font>
+                <pointsize>12</pointsize>
+               </font>
+              </property>
+              <property name="text">
+               <string>Refresh</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="checkBox_simulate">
+              <property name="font">
+               <font>
+                <pointsize>12</pointsize>
+               </font>
+              </property>
+              <property name="text">
+               <string>Simulate</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QComboBox" name="comboBox_files">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
+            <property name="styleSheet">
+             <string notr="true"/>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="lineEdit_setNo">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_10">
+            <item>
+             <widget class="QLineEdit" name="lineEdit_performedBy">
+              <property name="font">
+               <font>
+                <pointsize>12</pointsize>
+               </font>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="lineEdit_inspectedBy">
+              <property name="font">
+               <font>
+                <pointsize>12</pointsize>
+               </font>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_11">
+            <item>
+             <widget class="QLineEdit" name="lineEdit_projectName">
+              <property name="font">
+               <font>
+                <pointsize>12</pointsize>
+               </font>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="lineEdit_notes">
+              <property name="font">
+               <font>
+                <pointsize>12</pointsize>
+               </font>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QComboBox" name="comboBox_test">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="pushButton_run">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">QPushButton
+{
+    background: qlineargradient(
+        x1:0, y1:0,
+        x2:1, y2:0,
+        stop:0 #00c853,
+        stop:1 #2962ff
+    );
+
+    color: white;
+    border-radius: 10px;
+    padding: 8px;
+}
+QPushButton:hover
+{
+    background: qlineargradient(
+        x1:0, y1:0,
+        x2:1, y2:0,
+        stop:0 #00e676,
+        stop:1 #448aff
+    );
+}
+QPushButton:pressed
+{
+    background: qlineargradient(
+        x1:0, y1:0,
+        x2:1, y2:0,
+        stop:0 #00a152,
+        stop:1 #1e88e5
+    );
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+            </property>
+            <property name="text">
+             <string>Run</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="pushButton_back">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">QPushButton
+{
+    background: qlineargradient(
+        x1:0, y1:0,
+        x2:1, y2:0,
+        stop:0 #616161,
+        stop:1 #424242
+    );
+
+    color: white;
+    border: 1px solid #2c2c2c;
+    border-radius: 10px;
+    padding: 8px;
+    font-weight: bold;
+}
+
+QPushButton:hover
+{
+    background: qlineargradient(
+        x1:0, y1:0,
+        x2:1, y2:0,
+        stop:0 #757575,
+        stop:1 #545454
+    );
+}
+
+QPushButton:pressed
+{
+    background: qlineargradient(
+        x1:0, y1:0,
+        x2:1, y2:0,
+        stop:0 #4a4a4a,
+        stop:1 #303030
+    );
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+            </property>
+            <property name="text">
+             <string>Back</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="0" column="0">
+         <widget class="QLabel" name="label_9">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="font">
+           <font>
+            <pointsize>12</pointsize>
+           </font>
+          </property>
+          <property name="text">
+           <string>Test Mode</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
      </widget>
     </item>
    </layout>
@@ -4138,7 +4414,7 @@ QPushButton:pressed
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>552</width>
+     <width>554</width>
      <height>22</height>
     </rect>
    </property>

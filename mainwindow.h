@@ -20,6 +20,8 @@
 #include <QFile>
 #include <QDir>
 #include <QSqlTableModel>
+#include "testcontroller.h"
+#include <QCryptographicHash>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -58,6 +60,10 @@ public:
      QStringList getCableNames();
 
      bool validatePatchLine(int lineNumber,const QString &pCon,const QString &pPinStr);
+
+     bool deleteCable(const QString &cableName);
+
+
 private slots:
      void on_pushButton_Save_clicked();
 
@@ -66,8 +72,6 @@ private slots:
      void on_pushButton_login_clicked();
 
      //void on_pushButton_forgetPassword_clicked();
-
-
 
      void on_pushButton_forward_clicked();
 
@@ -152,6 +156,18 @@ private slots:
 
      void on_pushButton_patchCancel_clicked();
 
+     void on_pushButton_delCable_clicked();
+
+     void on_pushButton_test_clicked();
+
+        void onPortSelected(const QString &portName);
+
+        void on_pushButton_run_clicked();
+
+public slots:
+
+      void portStatus(const QString &data);
+
 private:
     Ui::MainWindow *ui;
     QSqlDatabase db;
@@ -174,6 +190,8 @@ private:
 
     QSqlTableModel *patchModel;
     QSqlTableModel *harnessModel;
+
+    TestController *test;
 
 
 };

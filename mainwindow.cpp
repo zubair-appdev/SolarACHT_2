@@ -11,15 +11,12 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
+    test = new TestController(this);
+
     ui->lineEdit_userName->setPlaceholderText("👤 Type your username");
     ui->lineEdit_password->setPlaceholderText("🔒 Enter your password");
     ui->lineEdit_password->setEchoMode(QLineEdit::Password);
-    ui->lineEdit_masterKeyRecPass->setEchoMode(QLineEdit::Password);
-    ui->lineEdit_changePassword->setEchoMode(QLineEdit::Password);
-    ui->lineEdit_confimPassword->setEchoMode(QLineEdit::Password);
-    ui->lineEdit_adminPass->setEchoMode(QLineEdit::Password);
 
-    ui->lineEdit_masterKey->setEchoMode(QLineEdit::Password);
     QToolButton *eyeBtn = new QToolButton(ui->lineEdit_password);
     eyeBtn->setCursor(Qt::PointingHandCursor);
     eyeBtn->setStyleSheet("border: none;");
@@ -47,6 +44,12 @@ MainWindow::MainWindow(QWidget *parent)
         }
     });
 
+
+    ui->comboBox_ports->addItems(test->availablePorts());
+    connect(ui->comboBox_ports,SIGNAL(activated(const QString &)),this,SLOT(onPortSelected(const QString &)));
+    connect(test,&TestController::portOpening,this,&MainWindow::portStatus);
+
+    test->welcome();
     resetLogFile();
     writeToNotes(+"    ******    "+QCoreApplication::applicationName() +
                  "     Application Started");
@@ -206,13 +209,15 @@ void MainWindow::on_pushButton_login_clicked()
 
     QString password =ui->lineEdit_password->text().trimmed();
 
+    QByteArray hashedPassword =QCryptographicHash::hash(password.toUtf8(),QCryptographicHash::Sha256).toHex();
+
     QSqlQuery q(db);
 
     q.prepare("SELECT role FROM loginData "
               "WHERE username=:u AND password=:p");
 
     q.bindValue(":u", username);
-    q.bindValue(":p", password);
+    q.bindValue(":p", hashedPassword);
 
     if (!q.exec())
     {
@@ -295,8 +300,6 @@ void MainWindow::on_pushButton_saveUser_clicked()
     QString password =
             ui->lineEdit_newPassword->text().trimmed();
 
-
-
     if(username.isEmpty() || password.isEmpty())
     {
         QMessageBox::warning(this,
@@ -304,7 +307,7 @@ void MainWindow::on_pushButton_saveUser_clicked()
                              "Please fill all fields");
         return;
     }
-
+    QByteArray hashedPassword =QCryptographicHash::hash(password.toUtf8(),QCryptographicHash::Sha256).toHex();
 
     QSqlQuery query(db);
 
@@ -316,7 +319,7 @@ void MainWindow::on_pushButton_saveUser_clicked()
     );
 
     query.bindValue(":username", username);
-    query.bindValue(":password", password);
+    query.bindValue(":password", hashedPassword);
     query.bindValue(":role", role);
 
     if(query.exec())
@@ -1232,6 +1235,11 @@ void MainWindow::on_pushButton_getDetails_clicked()
         QMessageBox::information(this,"Missing file Name","Select file from dropdown");
         return;
     }
+    if(tableName=="File")
+    {
+        QMessageBox::information(this,"Invalid","Select valid fileName");
+        return;
+    }
 
     ui->tabWidget->setCurrentIndex(0);
     ui->stackedWidget->setCurrentIndex(11);
@@ -1420,4 +1428,136 @@ void MainWindow::on_pushButton_patchCancel_clicked()
 {
    patchModel->revertAll();
     ui->tableView_patch->setEditTriggers(QAbstractItemView::NoEditTriggers);
+}
+
+void MainWindow::on_pushButton_delCable_clicked()
+{
+    if(ui->comboBox_fileNames->currentIndex()==0)
+    {
+        QMessageBox::information(this,"Missing Selection","Please select a cable to delete.");
+        return;
+    }
+    QString selectedFile = ui->comboBox_fileNames->currentText();
+    QMessageBox::StandardButton reply;
+    QString msg=QString("Do you want to Delete Cable %1").arg(selectedFile);
+    reply = QMessageBox::question(this,"Confirm",msg,QMessageBox::Yes|QMessageBox::No);
+    if(reply == QMessageBox::Yes)
+    {
+        bool del =deleteCable(selectedFile);
+        if(del)
+        {
+           QMessageBox::information(this,"Success","Cable deleted successfully");
+           ui->comboBox_fileNames->clear();
+           ui->comboBox_fileNames->addItems(getCableNames());
+           ui->comboBox_fileNames->setCurrentIndex(0);
+        }
+        else
+        {
+            QMessageBox::information(this,"Failed","Failed to delete");
+        }
+    }
+    else
+    {
+        QMessageBox::information(this,"Failed","Delete cancelled");
+    }
+}
+bool MainWindow::deleteCable(const QString &cableName)
+{
+    if (!db.isOpen()) {
+        writeToNotes("DB not open");
+        return false;
+    }
+
+    QString patchTable =
+            cableName + "_patch";
+
+    QString harnessTable =
+            cableName + "_harness";
+
+    // Detach models from views
+    ui->tableView_patch->setModel(nullptr);
+    ui->tableView_harness->setModel(nullptr);
+
+    // Clear model contents
+    if(patchModel)
+        patchModel->clear();
+
+    if(harnessModel)
+        harnessModel->clear();
+    QApplication::processEvents();
+
+    QSqlQuery q(db);
+
+    q.finish();
+
+    if (!q.exec("DROP TABLE IF EXISTS \"" + patchTable + "\"")) {
+        writeToNotes(q.lastError().text());
+        return false;
+    }
+
+    if (!q.exec("DROP TABLE IF EXISTS \"" + harnessTable + "\"")) {
+        writeToNotes(q.lastError().text());
+        return false;
+    }
+
+    writeToNotes("Cable deleted");
+
+    return true;
+}
+void MainWindow::portStatus(const QString &data)
+{
+    qDebug()<<"executed............";
+    if(data.startsWith("Serial object is not initialized/port not selected"))
+    {
+
+
+        QMessageBox::critical(this,"Port Error","Please Select Port Using Above Dropdown");
+    }
+
+    if(data.startsWith("Serial port ") && data.endsWith(" opened successfully at baud rate 921600"))
+    {
+        QMessageBox::information(this,"Success",data);
+    }
+
+    if(data.startsWith("Failed to open port"))
+    {
+
+        QMessageBox::critical(this,"Error",data);
+    }
+
+}
+
+void MainWindow::onPortSelected(const QString &portName)
+{
+  test->setPORTNAME(portName);
+}
+
+void MainWindow::on_pushButton_test_clicked()
+{
+    ui->stackedWidget->setCurrentIndex(12);
+    ui->comboBox_files->addItems(getCableNames());
+    QStringList ls={"Test","Two Wire Continuity","Isolation","Insulation"};
+    ui->comboBox_test->addItems(ls);
+}
+
+void MainWindow::on_pushButton_run_clicked()
+{
+    if(!test->isConnected())
+    {
+        QMessageBox::information(this,"Port not connected","Please connect to hardware before running test");
+        return;
+    }
+    if(ui->comboBox_files->currentIndex()==0||ui->lineEdit_inspectedBy->text()==""
+            ||ui->lineEdit_setNo->text()==""||ui->lineEdit_performedBy->text()==""
+            ||ui->lineEdit_projectName->text()==""||ui->lineEdit_notes->text()==""
+            ||ui->comboBox_test->currentIndex()==0)
+    {
+        QMessageBox::information(this,"Empty Fields","Please fill all details,select file and choose test");
+        return;
+    }
+    else
+    {
+      QString cableName = ui->comboBox_files->currentText();
+
+    }
 }

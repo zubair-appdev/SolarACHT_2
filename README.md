@@ -22,3 +22,13 @@
 
 
 
+* Ver1.3------------------------------------------------
+
+&#x20;   ->Delete cable implemented.
+
+&#x20;   ->Test page is implementing.
+
+&#x20;   ->Hashing is applied to passwords while saving in database.
+
+
+
