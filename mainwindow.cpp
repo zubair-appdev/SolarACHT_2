@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include "testcontroller.h"
 
 QFile MainWindow::logFile;
 QTextStream MainWindow::logStream;
@@ -45,9 +46,11 @@ MainWindow::MainWindow(QWidget *parent)
     });
 
 
+
     ui->comboBox_ports->addItems(test->availablePorts());
     connect(ui->comboBox_ports,SIGNAL(activated(const QString &)),this,SLOT(onPortSelected(const QString &)));
     connect(test,&TestController::portOpening,this,&MainWindow::portStatus);
+    connect(test,&TestController::executeWriteToNotes,this,&MainWindow::writeToNotes);
 
     test->welcome();
     resetLogFile();
@@ -57,9 +60,25 @@ MainWindow::MainWindow(QWidget *parent)
 
     writeToNotes("Pointer Size: "+QString::number(sizeof(void *))+" If it is 8 : 64 bit else 4 means 32 bit");
 
-
     initializeDatabase();
-    ui->stackedWidget->setCurrentIndex(0);
+
+    //patch model
+    patchModel = new QSqlTableModel(this,db);
+    ui->tableView_patch->setModel(patchModel);
+    ui->tableView_patch->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    patchModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
+
+    //harness model
+    harnessModel = new QSqlTableModel(this,db);
+    ui->tableView_harness->setModel(harnessModel);
+    ui->tableView_harness->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    harnessModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
+    ui->tableView_harness->verticalHeader()->setVisible(true);
+
+    ui->tableView_patch->setSelectionBehavior(QAbstractItemView::SelectRows);
+
+    ui->tableView_patch->setSelectionMode(QAbstractItemView::SingleSelection);
+    ui->stackedWidget->setCurrentIndex(4);
     ui->lineEdit_newPassword->setEchoMode(QLineEdit::Password);
 }
 MainWindow::~MainWindow()
@@ -726,11 +745,14 @@ void MainWindow::openCsvFile(const QString &fileType)
         ui->comboBox_fileNames->clear();
         ui->comboBox_fileNames->addItems(getCableNames());
         QMessageBox::information(this,"Success","CSV uploaded successfully!");
+        writeToNotes("complete upload");
 
     }
     else
     {
         QMessageBox::information(this,"Error","Failed to process CSV file");
+        writeToNotes("crash happened");
+
     }
 
 }
@@ -1229,13 +1251,14 @@ void MainWindow::on_pushButton_backToModes_clicked()
 void MainWindow::on_pushButton_getDetails_clicked()
 {
     QString tableName = ui->comboBox_fileNames->currentText();
+    ui->pushButton_patchCancel->hide();
 
     if(tableName.isEmpty())
     {
         QMessageBox::information(this,"Missing file Name","Select file from dropdown");
         return;
     }
-    if(tableName=="File")
+    if(tableName=="Files")
     {
         QMessageBox::information(this,"Invalid","Select valid fileName");
         return;
@@ -1243,20 +1266,6 @@ void MainWindow::on_pushButton_getDetails_clicked()
 
     ui->tabWidget->setCurrentIndex(0);
     ui->stackedWidget->setCurrentIndex(11);
-
-
-    //patch model
-    patchModel = new QSqlTableModel(this,db);
-    ui->tableView_patch->setModel(patchModel);
-    ui->tableView_patch->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    patchModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
-
-    //harness model
-    harnessModel = new QSqlTableModel(this,db);
-    ui->tableView_harness->setModel(harnessModel);
-    ui->tableView_harness->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    harnessModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
-    ui->tableView_harness->verticalHeader()->setVisible(true);
 
     loadPatchTable(tableName+"_patch");
     ui->label_fileName->setText(tableName);
@@ -1275,35 +1284,33 @@ void MainWindow::on_tabWidget_tabBarClicked(int index)
 void MainWindow::loadPatchTable(const QString &tableName)
 {
     qDebug()<<tableName<<"**********";
-    qDebug() << db.isOpen();
+    QString cleanTable =
+            tableName.trimmed();
+
+
+    //patchModel->setTable(cleanTable);
+    qDebug() << db.tables();
     patchModel->setTable(tableName);
 
-    patchModel->select();
+    bool ok = patchModel->select();
 
-    patchModel->setHeaderData(
-                1,
-                Qt::Horizontal,
-                "Cable");
+    qDebug() << "SELECT:" << ok;
 
-    patchModel->setHeaderData(
-                2,
-                Qt::Horizontal,
-                "User Con");
+    if(!ok)
+    {
+        qDebug() << patchModel->lastError().text();
 
-    patchModel->setHeaderData(
-                3,
-                Qt::Horizontal,
-                "User Pin");
+        return;
+    }
+    patchModel->setHeaderData( 1,Qt::Horizontal,"Cable");
 
-    patchModel->setHeaderData(
-                4,
-                Qt::Horizontal,
-                "Patch Con");
+    patchModel->setHeaderData( 2,Qt::Horizontal,"User Con");
 
-    patchModel->setHeaderData(
-                5,
-                Qt::Horizontal,
-                "Patch Pin");
+    patchModel->setHeaderData(3,Qt::Horizontal, "User Pin");
+
+    patchModel->setHeaderData( 4, Qt::Horizontal, "Patch Con");
+
+    patchModel->setHeaderData(5,Qt::Horizontal, "Patch Pin");
 
     // Hide ID column
     ui->tableView_patch->hideColumn(0);
@@ -1314,41 +1321,13 @@ void MainWindow::loadHarnessTable(const QString &tableName)
 
     harnessModel->select();
 
-    harnessModel->setHeaderData(
-                1,
-                Qt::Horizontal,
-                "Cable");
-
-    harnessModel->setHeaderData(
-                2,
-                Qt::Horizontal,
-                "Source Con");
-
-    harnessModel->setHeaderData(
-                3,
-                Qt::Horizontal,
-                "Source Pin");
-
-    harnessModel->setHeaderData(
-                4,
-                Qt::Horizontal,
-                "Dest Con");
-
-    harnessModel->setHeaderData(
-                5,
-                Qt::Horizontal,
-                "Dest Pin");
-
-    harnessModel->setHeaderData(
-                6,
-                Qt::Horizontal,
-                "Exp");
-
-    harnessModel->setHeaderData(
-                7,
-                Qt::Horizontal,
-                "Volt");
-
+    harnessModel->setHeaderData( 1, Qt::Horizontal,"Cable");
+    harnessModel->setHeaderData(2,Qt::Horizontal,"Source Con");
+    harnessModel->setHeaderData(3,Qt::Horizontal,"Source Pin");
+    harnessModel->setHeaderData(4,Qt::Horizontal,"Dest Con");
+    harnessModel->setHeaderData(5,Qt::Horizontal, "Dest Pin");
+    harnessModel->setHeaderData(6,Qt::Horizontal,"Exp");
+    harnessModel->setHeaderData(7,Qt::Horizontal,"Volt");
     ui->tableView_harness->hideColumn(0);
 }
 
@@ -1367,24 +1346,15 @@ void MainWindow::on_pushButton_saveChanges_clicked()
 
     if(harnessModel->submitAll())
     {
-        QMessageBox::information(
-                    this,
-                    "Success",
-                    "Changes saved successfully");
-
-        // Disable editing again
-        ui->tableView_harness->setEditTriggers(
-                    QAbstractItemView::NoEditTriggers);
+        QMessageBox::information(this,"Success", "Changes saved successfully");
+      // Disable editing again
+        ui->tableView_harness->setEditTriggers(QAbstractItemView::NoEditTriggers);
     }
     else
     {
-        QMessageBox::warning(
-                    this,
-                    "Error",
-                    harnessModel->lastError().text());
+        QMessageBox::warning(this,"Error",harnessModel->lastError().text());
     }
 }
-
 
 void MainWindow::on_pushButton_revertChanges_clicked()
 {
@@ -1394,6 +1364,7 @@ void MainWindow::on_pushButton_revertChanges_clicked()
 
 void MainWindow::on_pushButton_patchEdit_clicked()
 {
+    ui->pushButton_patchCancel->setVisible(true);
     ui->tableView_patch->setEditTriggers(
             QAbstractItemView::DoubleClicked |
             QAbstractItemView::SelectedClicked |
@@ -1404,23 +1375,17 @@ void MainWindow::on_pushButton_patchEdit_clicked()
 
 void MainWindow::on_pushButton_patchSave_clicked()
 {
+
     if(patchModel->submitAll())
     {
-        QMessageBox::information(
-                    this,
-                    "Success",
-                    "Changes saved successfully");
-
-        // Disable editing again
-        ui->tableView_patch->setEditTriggers(
-                    QAbstractItemView::NoEditTriggers);
+        patchModel->select();
+        QMessageBox::information(this,"Success","Changes saved successfully");
+       // Disable editing again
+        ui->tableView_patch->setEditTriggers(QAbstractItemView::NoEditTriggers);
     }
     else
     {
-        QMessageBox::warning(
-                    this,
-                    "Error",
-                    patchModel->lastError().text());
+        QMessageBox::warning(this, "Error", patchModel->lastError().text());
     }
 }
 
@@ -1432,24 +1397,28 @@ void MainWindow::on_pushButton_patchCancel_clicked()
 
 void MainWindow::on_pushButton_delCable_clicked()
 {
+    qDebug()<<ui->comboBox_fileNames->currentIndex()<<"";
     if(ui->comboBox_fileNames->currentIndex()==0)
     {
         QMessageBox::information(this,"Missing Selection","Please select a cable to delete.");
         return;
     }
     QString selectedFile = ui->comboBox_fileNames->currentText();
+
     QMessageBox::StandardButton reply;
     QString msg=QString("Do you want to Delete Cable %1").arg(selectedFile);
     reply = QMessageBox::question(this,"Confirm",msg,QMessageBox::Yes|QMessageBox::No);
     if(reply == QMessageBox::Yes)
     {
+        writeToNotes("calling del is problem");
         bool del =deleteCable(selectedFile);
+        writeToNotes("del");
         if(del)
         {
-           QMessageBox::information(this,"Success","Cable deleted successfully");
-           ui->comboBox_fileNames->clear();
-           ui->comboBox_fileNames->addItems(getCableNames());
-           ui->comboBox_fileNames->setCurrentIndex(0);
+            QMessageBox::information(this,"Success","Cable deleted successfully");
+            ui->comboBox_fileNames->clear();
+            ui->comboBox_fileNames->addItems(getCableNames());
+            ui->comboBox_fileNames->setCurrentIndex(0);
         }
         else
         {
@@ -1463,40 +1432,46 @@ void MainWindow::on_pushButton_delCable_clicked()
 }
 bool MainWindow::deleteCable(const QString &cableName)
 {
-    if (!db.isOpen()) {
+    if (!db.isOpen())
+    {
         writeToNotes("DB not open");
         return false;
     }
 
-    QString patchTable =
-            cableName + "_patch";
+    QString patchTable = cableName + "_patch";
 
-    QString harnessTable =
-            cableName + "_harness";
+    QString harnessTable = cableName + "_harness";
 
-    // Detach models from views
-    ui->tableView_patch->setModel(nullptr);
-    ui->tableView_harness->setModel(nullptr);
-
-    // Clear model contents
+    // Clear loaded tables from models
     if(patchModel)
+    {
         patchModel->clear();
+        patchModel->setTable("");
+    }
 
     if(harnessModel)
+    {
         harnessModel->clear();
+        harnessModel->setTable("");
+    }
+
     QApplication::processEvents();
 
     QSqlQuery q(db);
 
-    q.finish();
-
-    if (!q.exec("DROP TABLE IF EXISTS \"" + patchTable + "\"")) {
+    // Drop patch table
+    if (!q.exec("DROP TABLE IF EXISTS \"" + patchTable + "\""))
+    {
         writeToNotes(q.lastError().text());
+
         return false;
     }
 
-    if (!q.exec("DROP TABLE IF EXISTS \"" + harnessTable + "\"")) {
+    // Drop harness table
+    if (!q.exec("DROP TABLE IF EXISTS \"" +harnessTable + "\""))
+    {
         writeToNotes(q.lastError().text());
+
         return false;
     }
 
@@ -1509,8 +1484,6 @@ void MainWindow::portStatus(const QString &data)
     qDebug()<<"executed............";
     if(data.startsWith("Serial object is not initialized/port not selected"))
     {
-
-
         QMessageBox::critical(this,"Port Error","Please Select Port Using Above Dropdown");
     }
 
@@ -1558,6 +1531,218 @@ void MainWindow::on_pushButton_run_clicked()
     else
     {
       QString cableName = ui->comboBox_files->currentText();
+      QVariantList patch = getPatchData(cableName);
+      QVariantList harness =getHarnessData(cableName);
+      if(patch.length() ==0||harness.length()==0)
+      {
+          QMessageBox::information(this,"Data Missing","No Patch/Harness data found for this cable!");
+          return;
+      }
+      m_setNo       = ui->lineEdit_setNo->text();
+      m_performedBy = ui->lineEdit_performedBy->text();
+      m_inspectedBy = ui->lineEdit_inspectedBy->text();
+      m_projectName = ui->lineEdit_projectName->text();
+      m_testType    = ui->comboBox_test->currentText();
 
+
+      writeToNotes("=== TEST DATA RECEIVED FROM ");
+      writeToNotes("Cable     : " + cableName);
+      writeToNotes("Set No    : " + m_setNo);
+      writeToNotes("Performed : " + m_performedBy);
+      writeToNotes("Inspected : " + m_inspectedBy);
+      writeToNotes("Project   : " + m_projectName);
+      //writeToNotes("Notes     : " + notes);
+      writeToNotes("Test Type : " + m_testType);
+
+      if (!test->mapLogicalToHardware(patch, harness)) {
+          QMessageBox::information(this,"Mapping Failed","Patch to Harness mapping failed.");
+
+
+          return;
+      }
+      if(ui->comboBox_test->currentText()=="Two Wire Continuity")
+      {
+
+      }
+
+
+
+    }
+}
+QVariantList MainWindow::getPatchData(const QString &cableName)
+{
+    QVariantList rows;
+
+    if (!db.isOpen()) {
+        writeToNotes("getPatchData: DB not open");
+        return rows;
+    }
+
+    QString tableName = cableName + "_patch";
+
+    if (!db.tables().contains(tableName)) {
+        writeToNotes("getPatchData: Table not found → " + tableName);
+        return rows;
+    }
+
+    QString sql = "SELECT cable, userCon, userPin, patchCon, patchPin FROM " + tableName;
+
+    QSqlQuery q(db);
+    if (!q.exec(sql)) {
+        writeToNotes("getPatchData: query failed → " + q.lastError().text());
+        return rows;
+    }
+
+    while (q.next()) {
+        QVariantMap m;
+        m["cable"]    = q.value(0).toString();
+        m["userCon"]  = q.value(1).toString();
+        m["userPin"]  = q.value(2).toString();
+        m["patchCon"] = q.value(3).toString();
+        m["patchPin"] = q.value(4).toInt();
+        rows.append(m);
+    }
+
+    writeToNotes(QString("getPatchData: %1 rows for %2").arg(rows.size()).arg(cableName));
+    return rows;
+}
+QVariantList MainWindow::getHarnessData(const QString &cableName)
+{
+    QVariantList rows;
+
+    if (!db.isOpen()) {
+        writeToNotes("getHarnessData: DB not open");
+        return rows;
+    }
+
+    QString tableName = cableName + "_harness";
+
+    if (!db.tables().contains(tableName)) {
+        writeToNotes("getHarnessData: Table not found → " + tableName);
+        return rows;
+    }
+
+    QString sql =
+        "SELECT cable, sourceCon, sourcePin, destCon, destPin, exp, volt "
+        "FROM " + tableName;
+
+    QSqlQuery q(db);
+    if (!q.exec(sql)) {
+        writeToNotes("getHarnessData: query failed → " + q.lastError().text());
+        return rows;
+    }
+
+    while (q.next()) {
+        QVariantMap m;
+        m["cable"]     = q.value(0).toString();
+        m["sourceCon"] = q.value(1).toString();
+        m["sourcePin"] = q.value(2).toString();
+        m["destCon"]   = q.value(3).toString();
+        m["destPin"]   = q.value(4).toString();
+        m["exp"]       = q.value(5).toString();
+        m["volt"]      = q.value(6).toString();
+        rows.append(m);
+    }
+
+    writeToNotes(QString("getHarnessData: %1 rows for %2").arg(rows.size()).arg(cableName));
+    return rows;
+}
+
+
+void MainWindow::on_pushButton_back_clicked()
+{
+    ui->stackedWidget->setCurrentIndex(4);
+}
+
+void MainWindow::on_pushButton_addRow_clicked()
+{
+    ui->tableView_patch->setEditTriggers(
+            QAbstractItemView::DoubleClicked |
+            QAbstractItemView::SelectedClicked |
+            QAbstractItemView::EditKeyPressed
+    );
+
+    int row = patchModel->rowCount();
+
+    patchModel->insertRow(row);
+
+    ui->tableView_patch->selectRow(row);
+
+    ui->tableView_patch->scrollTo(
+                patchModel->index(row,0));
+}
+void MainWindow::on_pushButton_delRow_clicked()
+{
+
+    QModelIndex index =
+            ui->tableView_patch->currentIndex();
+
+    if(!index.isValid())
+    {
+        QMessageBox::information(
+                    this,
+                    "Selection",
+                    "Select row to delete");
+
+        return;
+    }
+
+    int row = index.row();
+
+    patchModel->removeRow(row);
+    if(patchModel->submitAll())
+    {
+        QMessageBox::information(this,"Success", "Row deleted successfully");
+    }
+    else
+    {
+        QMessageBox::warning(this,"Error",patchModel->lastError().text());
+    }
+
+}
+
+void MainWindow::on_pushButton_addHarnessRow_clicked()
+{
+    ui->tableView_harness->setEditTriggers(
+            QAbstractItemView::DoubleClicked |
+            QAbstractItemView::SelectedClicked |
+            QAbstractItemView::EditKeyPressed
+    );
+
+    int row = harnessModel->rowCount();
+
+    harnessModel->insertRow(row);
+
+    ui->tableView_harness->selectRow(row);
+
+    ui->tableView_harness->scrollTo(
+                harnessModel->index(row,0));
+}
+
+void MainWindow::on_pushButton_delHarnessRow_clicked()
+{
+    QModelIndex index =
+            ui->tableView_harness->currentIndex();
+
+    if(!index.isValid())
+    {
+        QMessageBox::information(
+                    this,
+                    "Selection",
+                    "Select row to delete");
+
+        return;
+    }
+
+    int row = index.row();
+
+    harnessModel->removeRow(row);
+    if(harnessModel->submitAll())
+    {
+        QMessageBox::information(this,"Success", "Row deleted successfully");
+    }
+    else
+    {
+        QMessageBox::warning(this,"Error",harnessModel->lastError().text());
     }
 }

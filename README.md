@@ -30,5 +30,3 @@
 
 &#x20;   ->Hashing is applied to passwords while saving in database.
 
-
-

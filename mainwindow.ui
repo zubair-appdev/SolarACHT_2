@@ -10,7 +10,7 @@
     <x>0</x>
     <y>0</y>
     <width>554</width>
-    <height>483</height>
+    <height>486</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -53,7 +53,7 @@
     gridline-color: #d9d9d9;</string>
       </property>
       <property name="currentIndex">
-       <number>10</number>
+       <number>11</number>
       </property>
       <widget class="QWidget" name="page">
        <layout class="QGridLayout" name="gridLayout_2">
@@ -1534,7 +1534,7 @@ QPushButton:pressed
 }</string>
              </property>
              <property name="text">
-              <string>Data Entry</string>
+              <string>Project Details</string>
              </property>
             </widget>
            </item>
@@ -3714,6 +3714,64 @@ QScrollBar::sub-page:horizontal
             <item>
              <layout class="QHBoxLayout" name="horizontalLayout_7">
               <item>
+               <widget class="QPushButton" name="pushButton_addRow">
+                <property name="styleSheet">
+                 <string notr="true">QPushButton
+{
+    background-color: #28A745;
+    color: white;
+    border: 1px solid #1E7E34;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QPushButton:hover
+{
+    background-color: #218838;
+}
+
+QPushButton:pressed
+{
+    background-color: #1E7E34;
+}</string>
+                </property>
+                <property name="text">
+                 <string>ADD</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_delRow">
+                <property name="styleSheet">
+                 <string notr="true">QPushButton
+{
+    background-color: #DC3545;
+    color: white;
+    border: 1px solid #B02A37;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QPushButton:hover
+{
+    background-color: #C82333;
+}
+
+QPushButton:pressed
+{
+    background-color: #B02A37;
+}</string>
+                </property>
+                <property name="text">
+                 <string>DELETE</string>
+                </property>
+               </widget>
+              </item>
+              <item>
                <spacer name="horizontalSpacer_27">
                 <property name="orientation">
                  <enum>Qt::Horizontal</enum>
@@ -3984,6 +4042,64 @@ QScrollBar::sub-page:horizontal
               </item>
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_3">
+                <item>
+                 <widget class="QPushButton" name="pushButton_addHarnessRow">
+                  <property name="styleSheet">
+                   <string notr="true">QPushButton
+{
+    background-color: #28A745;
+    color: white;
+    border: 1px solid #1E7E34;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QPushButton:hover
+{
+    background-color: #218838;
+}
+
+QPushButton:pressed
+{
+    background-color: #1E7E34;
+}</string>
+                  </property>
+                  <property name="text">
+                   <string>ADD</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="pushButton_delHarnessRow">
+                  <property name="styleSheet">
+                   <string notr="true">QPushButton
+{
+    background-color: #DC3545;
+    color: white;
+    border: 1px solid #B02A37;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QPushButton:hover
+{
+    background-color: #C82333;
+}
+
+QPushButton:pressed
+{
+    background-color: #B02A37;
+}</string>
+                  </property>
+                  <property name="text">
+                   <string>Delete</string>
+                  </property>
+                 </widget>
+                </item>
                 <item>
                  <spacer name="horizontalSpacer_26">
                   <property name="orientation">
@@ -4393,7 +4509,12 @@ QPushButton:pressed
           <property name="font">
            <font>
             <pointsize>12</pointsize>
+            <weight>75</weight>
+            <bold>true</bold>
            </font>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">border:none;</string>
           </property>
           <property name="text">
            <string>Test Mode</string>

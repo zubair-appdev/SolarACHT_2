@@ -20,13 +20,14 @@
 #include <QFile>
 #include <QDir>
 #include <QSqlTableModel>
-#include "testcontroller.h"
+
 #include <QCryptographicHash>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
+class TestController;
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -160,9 +161,23 @@ private slots:
 
      void on_pushButton_test_clicked();
 
-        void onPortSelected(const QString &portName);
+      void onPortSelected(const QString &portName);
 
-        void on_pushButton_run_clicked();
+      void on_pushButton_run_clicked();
+
+      QVariantList getPatchData(const QString &cableName);
+
+      QVariantList getHarnessData(const QString &cableName);
+
+      void on_pushButton_back_clicked();
+
+      void on_pushButton_addRow_clicked();
+
+      void on_pushButton_delRow_clicked();
+
+      void on_pushButton_addHarnessRow_clicked();
+
+      void on_pushButton_delHarnessRow_clicked();
 
 public slots:
 
@@ -192,6 +207,7 @@ private:
     QSqlTableModel *harnessModel;
 
     TestController *test;
+    bool simulate;
 
 
 };
