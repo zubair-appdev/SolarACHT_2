@@ -21,6 +21,32 @@ public:
     void setLogger(MainWindow *logger);
     bool mapLogicalToHardware(const QVariantList &patchData,const QVariantList &harnessData);
 
+    inline const QVector<QString>& get_k_SourceCon() const
+    {
+        return k_sourceCon;
+    }
+
+    inline const QVector<QString>& get_k_SourcePin() const
+    {
+        return k_sourcePin;
+    }
+
+    inline const QVector<QString>& get_k_DestinationCon() const
+    {
+        return k_destinationCon;
+    }
+
+    inline const QVector<QString>& get_k_DestinationPin() const
+    {
+        return k_destinationPin;
+    }
+
+    void startTwoWireTransmission(const QByteArray &startPacket,
+                                     const QVector<QByteArray> &packets);
+
+private slots:
+    void onReadyRead();
+
 signals:
     void infor();
     void portOpening(const QString &);
@@ -28,7 +54,7 @@ signals:
 
 private:
     QSerialPort *serial;
-    MainWindow *m_obj=nullptr;
+    MainWindow *m_obj = nullptr;
     QByteArray buffer;
 
     QVector<QString> k_sourceCon;
@@ -43,6 +69,15 @@ private:
     QVector<QString> userCon, userPin, patchCon, patchPin;
     QVector<QVector<QVector<QPair<QString, QString>>>> changedAllFixedGroups;
     QVector<QVector<QVector<QPair<QString, int>>>> allFixedGroups;
+
+    // Two Wire Packet Sending
+    QByteArray m_startPacket;
+    QVector<QByteArray> m_packets;
+
+    int m_currentPacket = -1;
+
+    bool m_waitingForStartAck = false;
+    bool m_waitingForPacketAck = false;
 
 };
 

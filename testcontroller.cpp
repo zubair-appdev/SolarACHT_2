@@ -3,12 +3,14 @@
 
 TestController::TestController(QObject *parent) : QObject(parent)
 {
- qDebug()<<"hello";
+    qDebug()<<"hello";
 
- serial = new QSerialPort(this);
+    serial = new QSerialPort(this);
 
-
+    connect(serial, &QSerialPort::readyRead,
+            this, &TestController::onReadyRead);
 }
+
 TestController::~TestController()
 {
 
@@ -16,9 +18,9 @@ TestController::~TestController()
 void TestController::welcome()
 {
     emit infor();
-    qDebug()<<"#####"
-    ;
+    qDebug()<<"#####" ;
 }
+
 QStringList TestController::availablePorts()
 {
     QStringList ports;
@@ -57,14 +59,17 @@ void TestController::setPORTNAME(const QString &portName)
         emit portOpening("Serial port "+serial->portName()+" opened successfully at baud rate 921600");
     }
 }
+
 bool TestController::isConnected() const
 {
     return serial->isOpen();
 }
+
 void TestController::setLogger(MainWindow *logger)
 {
     m_obj = logger;
 }
+
 bool TestController::mapLogicalToHardware(const QVariantList &patchData,
                                           const QVariantList &harnessData)
 {
@@ -101,7 +106,6 @@ bool TestController::mapLogicalToHardware(const QVariantList &patchData,
     this->patchCon = patchCon;
     this->patchPin = patchPin;
 
-
     emit executeWriteToNotes(QString("Patch rows loaded : %1").arg(userCon.size()));
 
     // -------- Extract HARNESS data --------
@@ -124,6 +128,7 @@ bool TestController::mapLogicalToHardware(const QVariantList &patchData,
 
     emit executeWriteToNotes(QString("Harness rows loaded : %1").arg(sourceCon.size()));
 
+
     // -------- Mapping process --------
     bool mappingOk = true;
     QString errorLog;
@@ -133,24 +138,29 @@ bool TestController::mapLogicalToHardware(const QVariantList &patchData,
         bool srcFound = false;
         bool dstFound = false;
 
+        // ---------------- Source ----------------
         for (int j = 0; j < userCon.size(); ++j)
         {
-            // Source mapping
             if (sourceCon[i] == userCon[j] &&
                 sourcePin[i] == userPin[j])
             {
                 k_sourceCon.append(patchCon[j]);
                 k_sourcePin.append(patchPin[j]);
                 srcFound = true;
+                break;
             }
+        }
 
-            // Destination mapping
+        // ---------------- Destination ----------------
+        for (int j = 0; j < userCon.size(); ++j)
+        {
             if (destCon[i] == userCon[j] &&
                 destPin[i] == userPin[j])
             {
                 k_destinationCon.append(patchCon[j]);
                 k_destinationPin.append(patchPin[j]);
                 dstFound = true;
+                break;
             }
         }
 
@@ -158,12 +168,12 @@ bool TestController::mapLogicalToHardware(const QVariantList &patchData,
         {
             mappingOk = false;
             errorLog += QString(
-                            "Row %1 mapping missing | SRC(%2:%3) DST(%4:%5)\n")
-                            .arg(i + 1)
-                            .arg(sourceCon[i])
-                            .arg(sourcePin[i])
-                            .arg(destCon[i])
-                            .arg(destPin[i]);
+                "Row %1 mapping missing | SRC(%2:%3) DST(%4:%5)\n")
+                .arg(i + 1)
+                .arg(sourceCon[i])
+                .arg(sourcePin[i])
+                .arg(destCon[i])
+                .arg(destPin[i]);
         }
     }
 
@@ -192,4 +202,116 @@ bool TestController::mapLogicalToHardware(const QVariantList &patchData,
 
     emit executeWriteToNotes("STEP-1 COMPLETED SUCCESSFULLY");
     return true;
+}
+
+void TestController::startTwoWireTransmission(
+        const QByteArray &startPacket,
+        const QVector<QByteArray> &packets)
+{
+    if(!serial->isOpen())
+    {
+        qDebug() << "Serial Port not open";
+        return;
+    }
+
+    // Reset previous transmission state
+        buffer.clear();
+
+    m_packets = packets;
+    m_startPacket = startPacket;
+
+    m_currentPacket = -1;
+
+    m_waitingForStartAck = true;
+    m_waitingForPacketAck = false;
+
+    serial->write(m_startPacket);
+
+    emit executeWriteToNotes("TX START : "
+                             + m_startPacket.toHex(' ').toUpper());
+
+    qDebug() << "Start Packet Sent";
+}
+
+void TestController::onReadyRead()
+{
+    buffer.append(serial->readAll());
+
+    const QByteArray ack =
+            QByteArray::fromHex("41434BEEB6");
+
+    while(buffer.size() >= ack.size())
+    {
+        if(buffer.left(5) == ack)
+        {
+            buffer.remove(0,5);
+
+            emit executeWriteToNotes("ACK Received");
+
+            //-------------------------------------------------
+            // ACK for START Packet
+            //-------------------------------------------------
+
+            if(m_waitingForStartAck)
+            {
+                m_waitingForStartAck = false;
+
+                m_currentPacket = 0;
+
+                if(!m_packets.isEmpty())
+                {
+                    serial->write(m_packets[0]);
+
+                    emit executeWriteToNotes(
+                                QString("TX Packet %1")
+                                .arg(1));
+
+                    emit executeWriteToNotes(
+                                m_packets[0].toHex(' ').toUpper());
+
+                    m_waitingForPacketAck = true;
+                }
+
+                continue;
+            }
+
+            //-------------------------------------------------
+            // ACK for DATA Packet
+            //-------------------------------------------------
+
+            if(m_waitingForPacketAck)
+            {
+                m_currentPacket++;
+
+                if(m_currentPacket < m_packets.size())
+                {
+                    serial->write(m_packets[m_currentPacket]);
+
+                    emit executeWriteToNotes(
+                                QString("TX Packet %1")
+                                .arg(m_currentPacket+1));
+
+                    emit executeWriteToNotes(
+                                m_packets[m_currentPacket]
+                                .toHex(' ')
+                                .toUpper());
+                }
+                else
+                {
+                    m_waitingForPacketAck = false;
+
+                    emit executeWriteToNotes(
+                                "Two Wire Transmission Completed");
+
+                    qDebug()<<"Transmission Complete";
+                }
+
+                continue;
+            }
+        }
+        else
+        {
+            buffer.remove(0,1);
+        }
+    }
 }

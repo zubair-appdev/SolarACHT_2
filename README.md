@@ -30,3 +30,12 @@
 
 &#x20;   ->Hashing is applied to passwords while saving in database.
 
+* Ver1.4------------------------------------------------
+
+&#x20;   ->Add row and del row in table.
+
+Ver 1.5 --------------------------------------------------------------------------------------
+- Upto Two wire packet sending and receiving completed.
+
+
+

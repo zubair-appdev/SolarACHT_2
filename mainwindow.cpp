@@ -13,6 +13,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
 
     test = new TestController(this);
+    test->setLogger(this);
 
     ui->lineEdit_userName->setPlaceholderText("👤 Type your username");
     ui->lineEdit_password->setPlaceholderText("🔒 Enter your password");
@@ -78,7 +79,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->tableView_patch->setSelectionBehavior(QAbstractItemView::SelectRows);
 
     ui->tableView_patch->setSelectionMode(QAbstractItemView::SingleSelection);
-    ui->stackedWidget->setCurrentIndex(4);
+    ui->stackedWidget->setCurrentIndex(0);
     ui->lineEdit_newPassword->setEchoMode(QLineEdit::Password);
 }
 MainWindow::~MainWindow()
@@ -739,20 +740,16 @@ void MainWindow::openCsvFile(const QString &fileType)
         }
     }
 
-    bool success =processCsvFile( fileToProcess, ui->lineEdit_cableName->text(),fileType);
+    bool success = processCsvFile( fileToProcess, ui->lineEdit_cableName->text(),fileType);
     if(success)
     {
         ui->comboBox_fileNames->clear();
         ui->comboBox_fileNames->addItems(getCableNames());
         QMessageBox::information(this,"Success","CSV uploaded successfully!");
-        writeToNotes("complete upload");
-
     }
     else
     {
         QMessageBox::information(this,"Error","Failed to process CSV file");
-        writeToNotes("crash happened");
-
     }
 
 }
@@ -783,8 +780,7 @@ bool MainWindow::processCsvFile(const QString &fileName,
     QVector<QString> cableTemp;
     QVector<QString> sourceConTemp, sourcePinTemp;
     QVector<QString> destConTemp, destPinTemp;
-    QVector<QString> expTemp, voltTemp;
-
+    QVector<QString> expTemp;
     // ⭐ IMPORTANT LOG ENTRY
     writeToNotes("Processing CSV → Cable: " + cableNameFromUI +
                  ", Type: " + type +
@@ -801,10 +797,15 @@ bool MainWindow::processCsvFile(const QString &fileName,
 
         QStringList parts = line.split(",");
 
-        if (type == "patch") {
+        if (std::all_of(parts.begin(), parts.end(),
+                        [](const QString &s){ return s.trimmed().isEmpty(); }))
+        {
+            break; // use continue if you want to move further after empty line
+        }
 
+        if (type == "patch") {
             if (parts.size() != 5) {
-                writeToNotes("❌ Malformed PATCH line " + QString::number(lineNumber));
+                writeToNotes("Malformed PATCH line " + QString::number(lineNumber));
                 return false;
             }
 
@@ -828,20 +829,21 @@ bool MainWindow::processCsvFile(const QString &fileName,
             patchPinList.append(pPinStr.toInt());
 
         }
-        else if (type == "harness") {
-
-            if (parts.size() != 7) {
+        else if (type == "harness")
+        {
+\
+            if (parts.size() != 6)
+            {
                 writeToNotes("❌ Malformed HARNESS line " + QString::number(lineNumber));
                 return false;
             }
-
             cableTemp.append(parts[0].trimmed());
             sourceConTemp.append(parts[1].trimmed());
             sourcePinTemp.append(parts[2].trimmed());
             destConTemp.append(parts[3].trimmed());
             destPinTemp.append(parts[4].trimmed());
             expTemp.append(parts[5].trimmed());
-            voltTemp.append(parts[6].trimmed());
+
         }
     }
 
@@ -857,18 +859,19 @@ bool MainWindow::processCsvFile(const QString &fileName,
     }
 
     // Run final harness validations
-    if (type == "harness") {
+    if (type == "harness")
+    {
         if (!validateHarnessData(cableTemp,
                                  sourceConTemp, sourcePinTemp,
                                  destConTemp, destPinTemp,
-                                 expTemp, voltTemp))
+                                 expTemp))
             return false;
 
         if (!saveHarnessToDb(cableNameFromUI,
                              cableTemp,
                              sourceConTemp, sourcePinTemp,
                              destConTemp, destPinTemp,
-                             expTemp, voltTemp))
+                             expTemp))
         {
             writeToNotes("❌ Failed to save HARNESS data to DB");
             return false;
@@ -959,8 +962,7 @@ bool MainWindow::validateHarnessData(const QVector<QString> &cableTemp,
                                      const QVector<QString> &sourcePinTemp,
                                      const QVector<QString> &destConTemp,
                                      const QVector<QString> &destPinTemp,
-                                     const QVector<QString> &expTemp,
-                                     const QVector<QString> &voltTemp)
+                                     const QVector<QString> &expTemp)
 {
     QVector<QString> sourceMiss, destMiss;
     QString extraLog;
@@ -985,13 +987,13 @@ bool MainWindow::validateHarnessData(const QVector<QString> &cableTemp,
         if (matchDst == 0)
             destMiss.append(destConTemp[i] + "-" + destPinTemp[i]);
 
-        if (matchSrc > 1)
-            extraLog += QString("⚠ EXTRA source append at index %1: %2-%3\n")
-                            .arg(i).arg(sourceConTemp[i]).arg(sourcePinTemp[i]);
+//        if (matchSrc > 1)
+//            extraLog += QString("⚠ EXTRA source append at index %1: %2-%3\n")
+//                            .arg(i).arg(sourceConTemp[i]).arg(sourcePinTemp[i]);
 
-        if (matchDst > 1)
-            extraLog += QString("⚠ EXTRA destination append at index %1: %2-%3\n")
-                            .arg(i).arg(destConTemp[i]).arg(destPinTemp[i]);
+//        if (matchDst > 1)
+//            extraLog += QString("⚠ EXTRA destination append at index %1: %2-%3\n")
+//                            .arg(i).arg(destConTemp[i]).arg(destPinTemp[i]);
     }
 
     if (!extraLog.isEmpty()) {
@@ -1017,22 +1019,22 @@ bool MainWindow::validateHarnessData(const QVector<QString> &cableTemp,
         if ((!v.startsWith("<") && !v.startsWith(">")) ||
             v.mid(1).toInt() < 1 || v.mid(1).toInt() > 100)
         {
-            writeToNotes(QString("❌ Invalid expValue at index %1: %2")
+            writeToNotes(QString("Invalid expValue at index %1: %2")
                              .arg(i).arg(v));
             return false;
         }
     }
 
     // Validate Voltage
-    for (int i = 0; i < voltTemp.size(); i++) {
-        QString v = voltTemp[i];
+//    for (int i = 0; i < voltTemp.size(); i++) {
+//        QString v = voltTemp[i];
 
-        if (v != "250V" && v != "500V") {
-            writeToNotes(QString("❌ Invalid Voltage at index %1: %2")
-                             .arg(i).arg(v));
-            return false;
-        }
-    }
+//        if (v != "250V" && v != "500V") {
+//            writeToNotes(QString("❌ Invalid Voltage at index %1: %2")
+//                             .arg(i).arg(v));
+//            return false;
+//        }
+//    }
 
     // ---------------------------------------------------------
     // PRINT ALL HARNESS DATA AFTER SUCCESSFUL VALIDATION
@@ -1042,17 +1044,16 @@ bool MainWindow::validateHarnessData(const QVector<QString> &cableTemp,
     for (int i = 0; i < sourceConTemp.size(); i++) {
 
         QString log = QString(
-                          "HARNESS Line OK (%1): Cable: %2 , SRC: %3-%4 → DEST: %5-%6 , exp: %7 , volt: %8")
+                          "HARNESS Line OK (%1): Cable: %2 , SRC: %3-%4 → DEST: %5-%6 , exp: %7")
                           .arg(i + 1)
                           .arg(cableTemp[i])              // <--- NEW
                           .arg(sourceConTemp[i])
                           .arg(sourcePinTemp[i])
                           .arg(destConTemp[i])
                           .arg(destPinTemp[i])
-                          .arg(expTemp[i])
-                          .arg(voltTemp[i]);
+                          .arg(expTemp[i]);
 
-       // writeToNotes(log);
+        writeToNotes(log);
     }
 
     writeToNotes("###########################################");
@@ -1060,14 +1061,14 @@ bool MainWindow::validateHarnessData(const QVector<QString> &cableTemp,
 
     return true;
 }
+
 bool MainWindow::saveHarnessToDb(const QString &cableName,
                                  const QVector<QString> &cableTemp,
                                  const QVector<QString> &sourceConTemp,
                                  const QVector<QString> &sourcePinTemp,
                                  const QVector<QString> &destConTemp,
                                  const QVector<QString> &destPinTemp,
-                                 const QVector<QString> &expTemp,
-                                 const QVector<QString> &voltTemp)
+                                 const QVector<QString> &expTemp)
 {
     QString tableName = cableName + "_harness";
     tableName.replace(" ", "_");
@@ -1076,70 +1077,82 @@ bool MainWindow::saveHarnessToDb(const QString &cableName,
 
     QString create =
         "CREATE TABLE IF NOT EXISTS " + tableName + " ("
-                                                    "id INTEGER PRIMARY KEY AUTOINCREMENT,"
-                                                    "cable TEXT,"
-                                                    "sourceCon TEXT,"
-                                                    "sourcePin TEXT,"
-                                                    "destCon TEXT,"
-                                                    "destPin TEXT,"
-                                                    "exp TEXT,"
-                                                    "volt TEXT"
-                                                    ")";
+        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "cable TEXT,"
+        "sourceCon TEXT,"
+        "sourcePin TEXT,"
+        "destCon TEXT,"
+        "destPin TEXT,"
+        "exp TEXT"
+        ")";
+
     if (!q.exec(create)) {
-        writeToNotes("❌ Failed to create table " + tableName + ": " + q.lastError().text());
+        writeToNotes("❌ Failed to create table " + tableName + ": " +
+                     q.lastError().text());
         return false;
     }
 
-    if(!q.exec("DELETE FROM " + tableName))
-    {
-        writeToNotes("❌ Failed to clear table "
-                     + tableName);
-
+    if (!q.exec("DELETE FROM " + tableName)) {
+        writeToNotes("❌ Failed to clear table " + tableName + ": " +
+                     q.lastError().text());
         return false;
     }
-    db.transaction();
+
+    if (!db.transaction()) {
+        writeToNotes("❌ Failed to start transaction: " +
+                     db.lastError().text());
+        return false;
+    }
 
     q.prepare("INSERT INTO " + tableName +
-              "(cable, sourceCon, sourcePin, destCon, destPin, exp, volt) "
-              "VALUES (?, ?, ?, ?, ?, ?, ?)");
+              " (cable, sourceCon, sourcePin, destCon, destPin, exp) "
+              "VALUES (?, ?, ?, ?, ?, ?)");
 
-    for (int i = 0; i < sourceConTemp.size(); i++) {
-
+    for (int i = 0; i < sourceConTemp.size(); i++)
+    {
         q.addBindValue(cableTemp[i]);
         q.addBindValue(sourceConTemp[i]);
         q.addBindValue(sourcePinTemp[i]);
         q.addBindValue(destConTemp[i]);
         q.addBindValue(destPinTemp[i]);
         q.addBindValue(expTemp[i]);
-        q.addBindValue(voltTemp[i]);
 
-        if (!q.exec()) {
-
+        if (!q.exec())
+        {
             db.rollback();
 
-            writeToNotes("❌ Insert failed in " + tableName + ": " + q.lastError().text());
+            writeToNotes("❌ Insert failed in " + tableName + ": " +
+                         q.lastError().text());
+
             return false;
         }
     }
-     db.commit();
+
+    if (!db.commit()) {
+        writeToNotes("❌ Failed to commit transaction: " +
+                     db.lastError().text());
+        return false;
+    }
 
     writeToNotes("✅ Harness data stored in table: " + tableName);
     return true;
 }
+
 bool MainWindow::validatePatchLine(int lineNumber,
                                    const QString &pCon,
                                    const QString &pPinStr)
 {
-    QRegularExpression tpRegex("^TP([1-9]|1[0-6])$");
+    QRegularExpression tpRegex("^TP-?([1-9]|1[0-9]|2[0-9]|3[0-2])$");
 
     if (!tpRegex.match(pCon).hasMatch()) {
-        writeToNotes(QString(" Invalid PatchCon at line %1: %2 (must be TP1–TP16)")
+        writeToNotes(QString("Invalid PatchCon at line %1: %2 (must be TP1–TP32)")
                          .arg(lineNumber).arg(pCon));
         return false;
     }
 
     bool ok;
     int pPin = pPinStr.toInt(&ok);
+
     if (!ok || pPin < 1 || pPin > 64) {
         writeToNotes(QString(" Invalid PatchPin at line %1: %2 (must be 1–64)")
                          .arg(lineNumber).arg(pPinStr));
@@ -1201,6 +1214,7 @@ QString MainWindow::convertExcelToCsv(const QString &xlsxFile)
     }
 
     QTextStream out(&csvFile);
+    out.setCodec("UTF-8");
 
     QXlsx::CellRange range = xlsx.dimension();
     int firstRow = range.firstRow();
@@ -1208,6 +1222,7 @@ QString MainWindow::convertExcelToCsv(const QString &xlsxFile)
 
     int firstCol = range.firstColumn();
     int lastCol  = range.lastColumn();
+    qDebug()<<"last column:"<<lastCol;
 
     for (int row = firstRow; row <= lastRow; ++row)
     {
@@ -1219,16 +1234,15 @@ QString MainWindow::convertExcelToCsv(const QString &xlsxFile)
 
             QString text = value.toString();
 
-            // Escape quotes for CSV
-            text.replace("\"", "\"\"");
+            // Remove line breaks
+            text.replace("\r", " ");
+            text.replace("\n", " ");
 
-            // Wrap in quotes if needed
-            if (text.contains(',') ||
-                text.contains('"') ||
-                text.contains('\n'))
-            {
-                text = "\"" + text + "\"";
-            }
+            // Replace commas with spaces
+            text.replace(",", " ");
+
+            // Optional: remove quotes too
+            text.replace("\"", "");
 
             fields << text;
         }
@@ -1479,9 +1493,120 @@ bool MainWindow::deleteCable(const QString &cableName)
 
     return true;
 }
+
+QVector<QByteArray> MainWindow::constructUARTPacketsForTwoWire(
+    const QVector<QString> &sourceCon,
+    const QVector<QString> &sourcePin,
+    const QVector<QString> &destCon,
+    const QVector<QString> &destPin)
+{
+    QVector<QByteArray> packets;
+
+    constexpr int MAX_PACKET_SIZE = 1024;
+    constexpr int HEADER_SIZE     = 6;
+    constexpr int ENTRY_SIZE      = 4;
+
+    const int maxEntriesPerPacket = (MAX_PACKET_SIZE - HEADER_SIZE) / ENTRY_SIZE;
+
+    quint16 packetNo = 1;
+
+    for (int start = 0; start < sourceCon.size(); start += maxEntriesPerPacket)
+    {
+        QByteArray packet;
+
+        //-------------------------------------------------
+        // Header
+        //-------------------------------------------------
+
+        packet.append(char(0x2F));
+        packet.append(char(0x2F));
+
+        // Packet Number (MSB first)
+        packet.append(char((packetNo >> 8) & 0xFF));
+        packet.append(char(packetNo & 0xFF));
+
+        // Reserve Packet Length (filled later)
+        packet.append(char(0x00));
+        packet.append(char(0x00));
+
+        //-------------------------------------------------
+        // Payload
+        //-------------------------------------------------
+
+        int end = qMin(start + maxEntriesPerPacket,
+                       sourceCon.size());
+
+        for (int i = start; i < end; ++i)
+        {
+            uint8_t srcCon = sourceCon[i].mid(2).toUInt();
+            uint8_t srcPin = sourcePin[i].toUInt();
+            uint8_t dstCon = destCon[i].mid(2).toUInt();
+            uint8_t dstPin = destPin[i].toUInt();
+
+            packet.append(char(srcCon));
+            packet.append(char(srcPin));
+            packet.append(char(dstCon));
+            packet.append(char(dstPin));
+        }
+
+        //-------------------------------------------------
+        // Update Packet Length
+        //-------------------------------------------------
+
+        quint16 packetLength = packet.size();
+
+        packet[4] = char((packetLength >> 8) & 0xFF);
+        packet[5] = char(packetLength & 0xFF);
+
+        packets.append(packet);
+
+        packetNo++;
+    }
+
+    return packets;
+}
+
+QByteArray MainWindow::constructTwoWireStartPacket(quint16 totalPackets)
+{
+    QByteArray packet;
+
+    packet.append(char(0x53));
+    packet.append(char(0x4B));
+    packet.append(char(0x32));
+
+    // Float Voltage
+    float voltage = static_cast<float>(ui->doubleSpinBox_voltage->value());
+
+    union
+    {
+        float f;
+        quint8 b[4];
+    } data;
+
+    data.f = voltage;
+
+    packet.append(char(data.b[0]));
+    packet.append(char(data.b[1]));
+    packet.append(char(data.b[2]));
+    packet.append(char(data.b[3]));
+
+    // Total packet count
+    packet.append(char((totalPackets >> 8) & 0xFF));
+    packet.append(char(totalPackets & 0xFF));
+
+    // XOR checksum
+    quint8 checksum = 0;
+
+    for(char c : packet)
+        checksum ^= static_cast<quint8>(c);
+
+    packet.append(char(checksum));
+
+    return packet;
+}
+
 void MainWindow::portStatus(const QString &data)
 {
-    qDebug()<<"executed............";
     if(data.startsWith("Serial object is not initialized/port not selected"))
     {
         QMessageBox::critical(this,"Port Error","Please Select Port Using Above Dropdown");
@@ -1509,8 +1634,6 @@ void MainWindow::on_pushButton_test_clicked()
 {
     ui->stackedWidget->setCurrentIndex(12);
     ui->comboBox_files->addItems(getCableNames());
-    QStringList ls={"Test","Two Wire Continuity","Isolation","Insulation"};
-    ui->comboBox_test->addItems(ls);
 }
 
 void MainWindow::on_pushButton_run_clicked()
@@ -1520,6 +1643,7 @@ void MainWindow::on_pushButton_run_clicked()
         QMessageBox::information(this,"Port not connected","Please connect to hardware before running test");
         return;
     }
+
     if(ui->comboBox_files->currentIndex()==0||ui->lineEdit_inspectedBy->text()==""
             ||ui->lineEdit_setNo->text()==""||ui->lineEdit_performedBy->text()==""
             ||ui->lineEdit_projectName->text()==""||ui->lineEdit_notes->text()==""
@@ -1528,11 +1652,12 @@ void MainWindow::on_pushButton_run_clicked()
         QMessageBox::information(this,"Empty Fields","Please fill all details,select file and choose test");
         return;
     }
+
     else
     {
       QString cableName = ui->comboBox_files->currentText();
       QVariantList patch = getPatchData(cableName);
-      QVariantList harness =getHarnessData(cableName);
+      QVariantList harness = getHarnessData(cableName);
       if(patch.length() ==0||harness.length()==0)
       {
           QMessageBox::information(this,"Data Missing","No Patch/Harness data found for this cable!");
@@ -1556,19 +1681,39 @@ void MainWindow::on_pushButton_run_clicked()
 
       if (!test->mapLogicalToHardware(patch, harness)) {
           QMessageBox::information(this,"Mapping Failed","Patch to Harness mapping failed.");
-
-
           return;
       }
-      if(ui->comboBox_test->currentText()=="Two Wire Continuity")
+
+
+      // Two Wire BLOCK Start------------------------
+
+      if(ui->comboBox_test->currentText() == "Two Wire Continuity")
       {
+        writeToNotes("Starting Two Wire Continuity");
+
+        QVector<QByteArray> packets =
+                constructUARTPacketsForTwoWire(
+                    test->get_k_SourceCon(),
+                    test->get_k_SourcePin(),
+                    test->get_k_DestinationCon(),
+                    test->get_k_DestinationPin());
+
+
+        QByteArray startPacket =
+                constructTwoWireStartPacket(packets.size());
+
+        test->startTwoWireTransmission(startPacket,
+                                       packets);
 
       }
+
+      // Two Wire BLOCK End------------------------
 
 
 
     }
 }
+
 QVariantList MainWindow::getPatchData(const QString &cableName)
 {
     QVariantList rows;
@@ -1606,6 +1751,7 @@ QVariantList MainWindow::getPatchData(const QString &cableName)
     writeToNotes(QString("getPatchData: %1 rows for %2").arg(rows.size()).arg(cableName));
     return rows;
 }
+
 QVariantList MainWindow::getHarnessData(const QString &cableName)
 {
     QVariantList rows;
@@ -1623,7 +1769,7 @@ QVariantList MainWindow::getHarnessData(const QString &cableName)
     }
 
     QString sql =
-        "SELECT cable, sourceCon, sourcePin, destCon, destPin, exp, volt "
+        "SELECT cable, sourceCon, sourcePin, destCon, destPin, exp "
         "FROM " + tableName;
 
     QSqlQuery q(db);
@@ -1640,11 +1786,14 @@ QVariantList MainWindow::getHarnessData(const QString &cableName)
         m["destCon"]   = q.value(3).toString();
         m["destPin"]   = q.value(4).toString();
         m["exp"]       = q.value(5).toString();
-        m["volt"]      = q.value(6).toString();
+
         rows.append(m);
     }
 
-    writeToNotes(QString("getHarnessData: %1 rows for %2").arg(rows.size()).arg(cableName));
+    writeToNotes(QString("getHarnessData: %1 rows for %2")
+                     .arg(rows.size())
+                     .arg(cableName));
+
     return rows;
 }
 
@@ -1668,22 +1817,16 @@ void MainWindow::on_pushButton_addRow_clicked()
 
     ui->tableView_patch->selectRow(row);
 
-    ui->tableView_patch->scrollTo(
-                patchModel->index(row,0));
+    ui->tableView_patch->scrollTo(patchModel->index(row,0));
 }
 void MainWindow::on_pushButton_delRow_clicked()
 {
 
-    QModelIndex index =
-            ui->tableView_patch->currentIndex();
+    QModelIndex index = ui->tableView_patch->currentIndex();
 
     if(!index.isValid())
     {
-        QMessageBox::information(
-                    this,
-                    "Selection",
-                    "Select row to delete");
-
+        QMessageBox::information(this, "Selection","Select row to delete");
         return;
     }
 
@@ -1698,7 +1841,6 @@ void MainWindow::on_pushButton_delRow_clicked()
     {
         QMessageBox::warning(this,"Error",patchModel->lastError().text());
     }
-
 }
 
 void MainWindow::on_pushButton_addHarnessRow_clicked()
@@ -1715,8 +1857,7 @@ void MainWindow::on_pushButton_addHarnessRow_clicked()
 
     ui->tableView_harness->selectRow(row);
 
-    ui->tableView_harness->scrollTo(
-                harnessModel->index(row,0));
+    ui->tableView_harness->scrollTo(harnessModel->index(row,0));
 }
 
 void MainWindow::on_pushButton_delHarnessRow_clicked()
@@ -1726,11 +1867,7 @@ void MainWindow::on_pushButton_delHarnessRow_clicked()
 
     if(!index.isValid())
     {
-        QMessageBox::information(
-                    this,
-                    "Selection",
-                    "Select row to delete");
-
+        QMessageBox::information(this, "Selection","Select row to delete");
         return;
     }
 

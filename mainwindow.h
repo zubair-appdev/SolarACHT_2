@@ -20,6 +20,7 @@
 #include <QFile>
 #include <QDir>
 #include <QSqlTableModel>
+#include <QTextCodec>
 
 #include <QCryptographicHash>
 
@@ -46,8 +47,8 @@ public:
                                           const QVector<QString> &sourcePinTemp,
                                           const QVector<QString> &destConTemp,
                                           const QVector<QString> &destPinTemp,
-                                          const QVector<QString> &expTemp,
-                                          const QVector<QString> &voltTemp);
+                                          const QVector<QString> &expTemp
+                                          );
      
      bool saveHarnessToDb(const QString &cableName,
                                       const QVector<QString> &cableTemp,
@@ -55,14 +56,23 @@ public:
                                       const QVector<QString> &sourcePinTemp,
                                       const QVector<QString> &destConTemp,
                                       const QVector<QString> &destPinTemp,
-                                      const QVector<QString> &expTemp,
-                                      const QVector<QString> &voltTemp);
+                                      const QVector<QString> &expTemp
+                                      );
      bool savePatchToDb(const QString &cableName);
      QStringList getCableNames();
 
      bool validatePatchLine(int lineNumber,const QString &pCon,const QString &pPinStr);
 
      bool deleteCable(const QString &cableName);
+
+     QVector<QByteArray> constructUARTPacketsForTwoWire(
+         const QVector<QString> &sourceCon,
+         const QVector<QString> &sourcePin,
+         const QVector<QString> &destCon,
+         const QVector<QString> &destPin);
+
+     QByteArray constructTwoWireStartPacket(quint16 totalPackets);
+
 
 
 private slots:
