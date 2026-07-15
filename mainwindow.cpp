@@ -660,6 +660,8 @@ void MainWindow::on_pushButton_delTomain_clicked()
 
 void MainWindow::on_pushButton_dataEntry_clicked()
 {
+    ui->comboBox_fileNames->clear();
+    ui->comboBox_fileNames->addItems(getCableNames());
     ui->stackedWidget->setCurrentIndex(10);
 }
 
@@ -814,6 +816,26 @@ bool MainWindow::processCsvFile(const QString &fileName,
 
             if (!validatePatchLine(lineNumber, pCon, pPinStr))
                 return false;
+
+            //-------------------------------------------------
+            // Convert Logical TP(1-16) -> Physical TP(1-32)
+            //-------------------------------------------------
+
+            int tpNo = pCon.section('-', 1).toInt();
+            int pPin = pPinStr.toInt();
+
+            if (pPin <= 64)
+            {
+                tpNo = (tpNo * 2) - 1;
+            }
+            else
+            {
+                tpNo = tpNo * 2;
+                pPin -= 64;
+            }
+
+            pCon = QString("TP-%1").arg(tpNo);
+            pPinStr = QString::number(pPin);
 
             // ⭐ LOG SUCCESSFUL PATCH LINE
             writeToNotes("PATCH Line OK (" + QString::number(lineNumber) + "): " +
@@ -1142,25 +1164,31 @@ bool MainWindow::validatePatchLine(int lineNumber,
                                    const QString &pCon,
                                    const QString &pPinStr)
 {
-    QRegularExpression tpRegex("^TP-?([1-9]|1[0-9]|2[0-9]|3[0-2])$");
+    // Valid TP-1 to TP-16
+    QRegularExpression tpRegex("^TP-?(?:[1-9]|1[0-6])$");
 
-    if (!tpRegex.match(pCon).hasMatch()) {
-        writeToNotes(QString("Invalid PatchCon at line %1: %2 (must be TP1–TP32)")
-                         .arg(lineNumber).arg(pCon));
+    if (!tpRegex.match(pCon).hasMatch())
+    {
+        writeToNotes(QString("Invalid PatchCon at line %1: %2 (must be TP-1 to TP-16)")
+                         .arg(lineNumber)
+                         .arg(pCon));
         return false;
     }
 
-    bool ok;
+    bool ok = false;
     int pPin = pPinStr.toInt(&ok);
 
-    if (!ok || pPin < 1 || pPin > 64) {
-        writeToNotes(QString(" Invalid PatchPin at line %1: %2 (must be 1–64)")
-                         .arg(lineNumber).arg(pPinStr));
+    if (!ok || pPin < 1 || pPin > 128)
+    {
+        writeToNotes(QString("Invalid PatchPin at line %1: %2 (must be 1–128)")
+                         .arg(lineNumber)
+                         .arg(pPinStr));
         return false;
     }
 
     return true;
 }
+
 QStringList MainWindow::getCableNames()
 {
     QStringList list;
@@ -1295,40 +1323,76 @@ void MainWindow::on_tabWidget_tabBarClicked(int index)
         ui->stackedWidget->setCurrentIndex(10);
     }
 }
+
 void MainWindow::loadPatchTable(const QString &tableName)
 {
-    qDebug()<<tableName<<"**********";
-    QString cleanTable =
-            tableName.trimmed();
+    qDebug() << tableName << "**********";
 
-
-    //patchModel->setTable(cleanTable);
-    qDebug() << db.tables();
     patchModel->setTable(tableName);
 
-    bool ok = patchModel->select();
-
-    qDebug() << "SELECT:" << ok;
-
-    if(!ok)
+    if(!patchModel->select())
     {
         qDebug() << patchModel->lastError().text();
-
         return;
     }
-    patchModel->setHeaderData( 1,Qt::Horizontal,"Cable");
 
-    patchModel->setHeaderData( 2,Qt::Horizontal,"User Con");
+    while(patchModel->canFetchMore())
+        patchModel->fetchMore();
 
-    patchModel->setHeaderData(3,Qt::Horizontal, "User Pin");
+    QStandardItemModel *displayModel = new QStandardItemModel(this);
 
-    patchModel->setHeaderData( 4, Qt::Horizontal, "Patch Con");
+    displayModel->setHorizontalHeaderLabels(
+                {"ID","Cable","User Con","User Pin","Patch Con","Patch Pin"});
 
-    patchModel->setHeaderData(5,Qt::Horizontal, "Patch Pin");
+    for(int row = 0; row < patchModel->rowCount(); ++row)
+    {
+        QList<QStandardItem*> items;
 
-    // Hide ID column
+        for(int col = 0; col < patchModel->columnCount(); ++col)
+        {
+            QString value = patchModel->index(row,col).data().toString();
+
+            if(col == 4)       // Patch Con
+            {
+                int tpNo = value.section('-',1).toInt();
+
+                if(tpNo % 2)
+                    tpNo = (tpNo + 1) / 2;
+                else
+                    tpNo /= 2;
+
+                value = QString("TP-%1").arg(tpNo);
+            }
+            else if(col == 5)  // Patch Pin
+            {
+                int pin = value.toInt();
+
+                QString dbCon = patchModel->index(row,4).data().toString();
+                int tpNo = dbCon.section('-',1).toInt();
+
+                if(tpNo % 2 == 0)
+                    pin += 64;
+
+                value = QString::number(pin);
+            }
+
+            items.append(new QStandardItem(value));
+        }
+
+        displayModel->appendRow(items);
+    }
+
+    ui->tableView_patch->setModel(displayModel);
+
     ui->tableView_patch->hideColumn(0);
+
+    displayModel->setHeaderData(1,Qt::Horizontal,"Cable");
+    displayModel->setHeaderData(2,Qt::Horizontal,"User Con");
+    displayModel->setHeaderData(3,Qt::Horizontal,"User Pin");
+    displayModel->setHeaderData(4,Qt::Horizontal,"Patch Con");
+    displayModel->setHeaderData(5,Qt::Horizontal,"Patch Pin");
 }
+
 void MainWindow::loadHarnessTable(const QString &tableName)
 {
     harnessModel->setTable(tableName);
@@ -1538,10 +1602,32 @@ QVector<QByteArray> MainWindow::constructUARTPacketsForTwoWire(
 
         for (int i = start; i < end; ++i)
         {
-            uint8_t srcCon = sourceCon[i].mid(2).toUInt();
-            uint8_t srcPin = sourcePin[i].toUInt();
-            uint8_t dstCon = destCon[i].mid(2).toUInt();
-            uint8_t dstPin = destPin[i].toUInt();
+            if (!sourceCon[i].startsWith("TP-") ||
+                !destCon[i].startsWith("TP-"))
+            {
+                QMessageBox::critical(
+                    this,
+                    "Invalid Connector Format",
+                    QString("Invalid connector format at row %1.\n\n"
+                            "Expected format: TP-<number>\n\n"
+                            "Source      : %2\n"
+                            "Destination : %3")
+                        .arg(i + 1)
+                        .arg(sourceCon[i])
+                        .arg(destCon[i]));
+
+                return {};
+            }
+
+            quint8 srcCon = static_cast<quint8>(
+                                sourceCon[i].section('-', 1, 1).toUInt());
+
+            quint8 srcPin = static_cast<quint8>(sourcePin[i].toUInt());
+
+            quint8 dstCon = static_cast<quint8>(
+                                destCon[i].section('-', 1, 1).toUInt());
+
+            quint8 dstPin = static_cast<quint8>(destPin[i].toUInt());
 
             packet.append(char(srcCon));
             packet.append(char(srcPin));
@@ -1553,7 +1639,7 @@ QVector<QByteArray> MainWindow::constructUARTPacketsForTwoWire(
         // Update Packet Length
         //-------------------------------------------------
 
-        quint16 packetLength = packet.size();
+        quint16 packetLength = packet.size() - 6;
 
         packet[4] = char((packetLength >> 8) & 0xFF);
         packet[5] = char(packetLength & 0xFF);
@@ -1585,10 +1671,10 @@ QByteArray MainWindow::constructTwoWireStartPacket(quint16 totalPackets)
 
     data.f = voltage;
 
-    packet.append(char(data.b[0]));
-    packet.append(char(data.b[1]));
-    packet.append(char(data.b[2]));
     packet.append(char(data.b[3]));
+    packet.append(char(data.b[2]));
+    packet.append(char(data.b[1]));
+    packet.append(char(data.b[0]));
 
     // Total packet count
     packet.append(char((totalPackets >> 8) & 0xFF));
@@ -1709,6 +1795,59 @@ void MainWindow::on_pushButton_run_clicked()
 
       // Two Wire BLOCK End------------------------
 
+
+      if(ui->comboBox_test->currentText() == "Insulation")
+      {
+          writeToNotes("======================================");
+          writeToNotes("STEP-1 : DIVIDING HARNESS INTO LOOMS");
+          writeToNotes("======================================");
+
+          QMap<QString, QVector<HarnessConnection>> looms;
+
+          QVector<QString> cable     = test->get_Cable();
+          QVector<QString> sourceCon = test->get_k_SourceCon();
+          QVector<QString> sourcePin = test->get_k_SourcePin();
+          QVector<QString> destCon   = test->get_k_DestinationCon();
+          QVector<QString> destPin   = test->get_k_DestinationPin();
+          QVector<QString> exp       = test->get_expResistance();
+
+          for(int i = 0; i < cable.size(); ++i)
+          {
+              HarnessConnection row;
+
+              row.cable     = cable[i];
+              row.sourceCon = sourceCon[i];
+              row.sourcePin = sourcePin[i];
+              row.destCon   = destCon[i];
+              row.destPin   = destPin[i];
+              row.exp       = exp[i];
+
+              looms[cable[i]].append(row);
+          }
+
+          // Printing Looms
+          for(auto it = looms.begin(); it != looms.end(); ++it)
+          {
+              writeToNotes("");
+              writeToNotes(QString("******** %1 ********").arg(it.key()));
+
+              const QVector<HarnessConnection> &rows = it.value();
+
+              for(const HarnessConnection &r : rows)
+              {
+                  writeToNotes(QString("%1 : %2  --->  %3 : %4")
+                               .arg(r.sourceCon)
+                               .arg(r.sourcePin)
+                               .arg(r.destCon)
+                               .arg(r.destPin));
+              }
+          }
+
+          writeToNotes("");
+          writeToNotes(QString("Total Looms : %1").arg(looms.size()));
+
+          // continue from here ...
+      }
 
 
     }

@@ -21,6 +21,10 @@ public:
     void setLogger(MainWindow *logger);
     bool mapLogicalToHardware(const QVariantList &patchData,const QVariantList &harnessData);
 
+    inline const QVector<QString>& get_Cable() const
+    {
+        return cable;
+    }
     inline const QVector<QString>& get_k_SourceCon() const
     {
         return k_sourceCon;
@@ -39,6 +43,11 @@ public:
     inline const QVector<QString>& get_k_DestinationPin() const
     {
         return k_destinationPin;
+    }
+
+    inline const QVector<QString>& get_expResistance() const
+    {
+        return exp;
     }
 
     void startTwoWireTransmission(const QByteArray &startPacket,
@@ -62,7 +71,7 @@ private:
     QVector<QString> k_destinationCon;
     QVector<QString> k_destinationPin;
 
-    QVector<QString> sourceCon, sourcePin, destCon, destPin, exp;
+    QVector<QString> cable, sourceCon, sourcePin, destCon, destPin, exp;
     QString m_simulate;
 
     // Patch data for Iso/Insu tests

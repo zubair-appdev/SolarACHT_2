@@ -37,5 +37,8 @@
 Ver 1.5 --------------------------------------------------------------------------------------
 - Upto Two wire packet sending and receiving completed.
 
+Ver 1.6 ------------------------------------------------------------------------------------
+- Insulation packet started separating loops completed.
+
 
 

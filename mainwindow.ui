@@ -1639,6 +1639,12 @@ QPushButton:pressed
             </widget>
            </item>
           </layout>
+          <zorder>pushButton_dataEntry</zorder>
+          <zorder>label_welcome</zorder>
+          <zorder>label_role</zorder>
+          <zorder>pushButton_deleteUsers</zorder>
+          <zorder>pushButton_test</zorder>
+          <zorder>pushButton_logOut</zorder>
          </widget>
         </item>
         <item row="2" column="3">
@@ -4509,7 +4515,7 @@ QPushButton:pressed
                 <string>Range : 0 - 1000V</string>
                </property>
                <property name="suffix">
-                <string> V</string>
+                <string> A</string>
                </property>
                <property name="maximum">
                 <double>1000.000000000000000</double>

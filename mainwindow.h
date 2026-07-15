@@ -21,6 +21,7 @@
 #include <QDir>
 #include <QSqlTableModel>
 #include <QTextCodec>
+#include <QStandardItemModel>
 
 #include <QCryptographicHash>
 
@@ -73,6 +74,16 @@ public:
 
      QByteArray constructTwoWireStartPacket(quint16 totalPackets);
 
+     // Insulation Logic
+     struct HarnessConnection
+     {
+         QString cable;
+         QString sourceCon;
+         QString sourcePin;
+         QString destCon;
+         QString destPin;
+         QString exp;
+     };
 
 
 private slots:

@@ -76,19 +76,17 @@ bool TestController::mapLogicalToHardware(const QVariantList &patchData,
     if (!m_obj)
         return false;
 
-    m_obj->writeToNotes("================================================");
-    m_obj->writeToNotes("STEP-1 : Mapping Logical Connectors → Hardware Pins");
-    m_obj->writeToNotes("================================================");
-
-      emit executeWriteToNotes("===========================================");
-      emit executeWriteToNotes("STEP-1:Mapping Logical Connectors->Hardware Pins");
-      emit executeWriteToNotes("=============================================");
+    emit executeWriteToNotes("===========================================");
+    emit executeWriteToNotes("STEP-1:Mapping Logical Connectors->Hardware Pins");
+    emit executeWriteToNotes("=============================================");
 
     // Clear previous mappings
+    cable.clear();
     k_sourceCon.clear();
     k_sourcePin.clear();
     k_destinationCon.clear();
     k_destinationPin.clear();
+    exp.clear();
 
     // -------- Extract PATCH data --------
     QVector<QString> userCon,userPin,patchCon, patchPin;
@@ -109,10 +107,12 @@ bool TestController::mapLogicalToHardware(const QVariantList &patchData,
     emit executeWriteToNotes(QString("Patch rows loaded : %1").arg(userCon.size()));
 
     // -------- Extract HARNESS data --------
-    QVector<QString> sourceCon, sourcePin, destCon, destPin, exp;
+    QVector<QString> cable, sourceCon, sourcePin, destCon, destPin, exp;
 
     for (const QVariant &v : harnessData) {
         QVariantMap m = v.toMap();
+
+        cable.append(m["cable"].toString());
         sourceCon.append(m["sourceCon"].toString());
         sourcePin.append(m["sourcePin"].toString());
         destCon.append(m["destCon"].toString());
@@ -120,6 +120,7 @@ bool TestController::mapLogicalToHardware(const QVariantList &patchData,
         exp.append(m["exp"].toString());
     }
 
+    this->cable = cable;
     this->sourceCon = sourceCon;
     this->sourcePin = sourcePin;
     this->destCon = destCon;
