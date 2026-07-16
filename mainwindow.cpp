@@ -1796,6 +1796,8 @@ void MainWindow::on_pushButton_run_clicked()
       // Two Wire BLOCK End------------------------
 
 
+      // Insulation Packet logic start ------------------------------------------------
+
       if(ui->comboBox_test->currentText() == "Insulation")
       {
           writeToNotes("======================================");
@@ -1846,9 +1848,167 @@ void MainWindow::on_pushButton_run_clicked()
           writeToNotes("");
           writeToNotes(QString("Total Looms : %1").arg(looms.size()));
 
-          // continue from here ...
+
+          //Loom wise net creation
+
+          for(auto it = looms.begin(); it != looms.end(); ++it)
+          {
+              writeToNotes("");
+              writeToNotes(QString("========================================"));
+              writeToNotes(QString("PROCESSING LOOM : %1").arg(it.key()));
+              writeToNotes(QString("========================================"));
+
+              const QVector<HarnessConnection> &rows = it.value();
+
+              // ---------------------------------------------------
+              // STEP-2 : Create endpoint pairs (same as old net logic)
+              // ---------------------------------------------------
+
+              QVector<QPair<QPair<QString,int>,QPair<QString,int>>> pairs;
+
+              for(const HarnessConnection &r : rows)
+              {
+                  pairs.append(
+                      qMakePair(
+                          qMakePair(r.sourceCon, r.sourcePin.toInt()),
+                          qMakePair(r.destCon,   r.destPin.toInt())
+                      )
+                  );
+              }
+
+              // ---------------------------------------------------
+              // STEP-3 : Merge into Nets (same algorithm as before)
+              // ---------------------------------------------------
+
+              QVector<QVector<QPair<QString,int>>> fixedGroups;
+
+              for(int i=0;i<pairs.size();++i)
+              {
+                  QPair<QString,int> first  = pairs[i].first;
+                  QPair<QString,int> second = pairs[i].second;
+
+                  QVector<int> groupIndices;
+
+                  for(int j=0;j<fixedGroups.size();++j)
+                  {
+                      if(fixedGroups[j].contains(first) ||
+                         fixedGroups[j].contains(second))
+                      {
+                          groupIndices.append(j);
+                      }
+                  }
+
+                  if(groupIndices.isEmpty())
+                  {
+                      QVector<QPair<QString,int>> newGroup;
+                      newGroup.append(first);
+                      newGroup.append(second);
+
+                      fixedGroups.append(newGroup);
+                  }
+                  else
+                  {
+                      int mainIndex = groupIndices[0];
+
+                      for(int k=1;k<groupIndices.size();++k)
+                      {
+                          int mergeIndex = groupIndices[k];
+
+                          fixedGroups[mainIndex] += fixedGroups[mergeIndex];
+                          fixedGroups[mergeIndex].clear();
+                      }
+
+                      if(!fixedGroups[mainIndex].contains(first))
+                          fixedGroups[mainIndex].append(first);
+
+                      if(!fixedGroups[mainIndex].contains(second))
+                          fixedGroups[mainIndex].append(second);
+                  }
+              }
+
+              // Remove merged empty groups
+              fixedGroups.erase(
+                          std::remove_if(
+                              fixedGroups.begin(),
+                              fixedGroups.end(),
+                              [](const QVector<QPair<QString,int>> &g)
+                              {
+                                  return g.isEmpty();
+                              }),
+                          fixedGroups.end());
+
+              // ---------------------------------------------------
+              // STEP-4 : Print Nets
+              // ---------------------------------------------------
+
+              writeToNotes(QString("TOTAL NETS : %1").arg(fixedGroups.size()));
+
+              for(int net=0; net<fixedGroups.size(); ++net)
+              {
+                  writeToNotes("");
+                  writeToNotes(QString("NET-%1").arg(net));
+
+                  for(const auto &point : fixedGroups[net])
+                  {
+                      writeToNotes(
+                                  QString("   %1 : %2")
+                                  .arg(point.first)
+                                  .arg(point.second));
+                  }
+              }
+
+              // ---------------------------------------------------
+              // STEP-4 : Print Packet Structure
+              // ---------------------------------------------------
+
+              int connectorDataLength = 0;    // uint16 No Of Nets
+
+              writeToNotes("");
+              writeToNotes(QString("LOOM : %1").arg(it.key()));
+              writeToNotes(QString("TOTAL NETS : %1").arg(fixedGroups.size()));
+
+              // Calculate Connector Data Length
+              for(int net = 0; net < fixedGroups.size(); ++net)
+              {
+                  int netDataLength = fixedGroups[net].size() * 2; // connector + pin
+
+                  connectorDataLength +=
+                          2 +                 // Net No
+                          2 +                 // Net Data Length
+                          netDataLength;      // Net Data
+              }
+
+              writeToNotes(QString("Connector Data Length : %1 Bytes")
+                           .arg(connectorDataLength));
+
+              writeToNotes(QString("Number Of Nets : %1")
+                           .arg(fixedGroups.size()));
+
+              writeToNotes("");
+
+              for(int net = 0; net < fixedGroups.size(); ++net)
+              {
+                  int netDataLength = fixedGroups[net].size() * 2;
+
+                  writeToNotes(QString("------------ NET %1 ------------").arg(net));
+                  writeToNotes(QString("Net Number      : %1").arg(net));
+                  writeToNotes(QString("Net Data Length : %1 Bytes").arg(netDataLength));
+
+                  for(const auto &point : fixedGroups[net])
+                  {
+                      writeToNotes(QString("   %1 : %2")
+                                   .arg(point.first)
+                                   .arg(point.second));
+                  }
+
+                  writeToNotes("");
+              }
+          }
+            //continue from here ... from insulation architecture chat
+
       }
 
+      // Insulation Packet logic end ------------------------------------------------
 
     }
 }
