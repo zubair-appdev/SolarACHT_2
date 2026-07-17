@@ -1848,8 +1848,12 @@ void MainWindow::on_pushButton_run_clicked()
           writeToNotes("");
           writeToNotes(QString("Total Looms : %1").arg(looms.size()));
 
+          // Final storer
+          QVector<QByteArray> loomPackets;
 
           //Loom wise net creation
+
+          quint16 loomNumber = 0;
 
           for(auto it = looms.begin(); it != looms.end(); ++it)
           {
@@ -1961,7 +1965,7 @@ void MainWindow::on_pushButton_run_clicked()
               // STEP-4 : Print Packet Structure
               // ---------------------------------------------------
 
-              int connectorDataLength = 0;    // uint16 No Of Nets
+              int connectorDataLength = 2;    // uint16 No Of Nets
 
               writeToNotes("");
               writeToNotes(QString("LOOM : %1").arg(it.key()));
@@ -2003,8 +2007,137 @@ void MainWindow::on_pushButton_run_clicked()
 
                   writeToNotes("");
               }
+
+              //Loom packets storage start -----------------------------------
+              QByteArray loomPacket;
+
+              auto appendUInt16 = [&](quint16 value)
+              {
+                  // MSB first (same as your previous protocol)
+                  loomPacket.append(char((value >> 8) & 0xFF));
+                  loomPacket.append(char(value & 0xFF));
+              };
+
+              appendUInt16(loomNumber);
+              appendUInt16(connectorDataLength);
+              appendUInt16(fixedGroups.size());
+
+              for(int net = 0; net < fixedGroups.size(); ++net)
+              {
+                  int netDataLength = fixedGroups[net].size() * 2;
+
+                  appendUInt16(net);
+
+                  appendUInt16(netDataLength);
+
+                  for(const auto &point : fixedGroups[net])
+                  {
+                      QString connector = point.first;
+
+                      // TP-1 -> 1
+                      // TP-12 -> 12
+
+                      quint8 connectorNo =
+                              connector.mid(3).toUInt();
+
+                      quint8 pin =
+                              static_cast<quint8>(point.second);
+
+                      loomPacket.append(char(connectorNo));
+                      loomPacket.append(char(pin));
+                  }
+              }
+
+              loomPackets.append(loomPacket);
+
+              writeToNotes(QString("Serialized Loom %1 : %2 bytes")
+                           .arg(loomNumber)
+                           .arg(loomPacket.size()));
+
+              writeToNotes(loomPacket.toHex(' '));
+
+              loomNumber++;
+
+              //Loom packets storage end -----------------------------------
           }
-            //continue from here ... from insulation architecture chat
+
+          //UART Packet Creation of 1024 starts ------------------------
+
+          writeToNotes("");
+          writeToNotes("======================================");
+          writeToNotes("STEP-5 : BUILDING UART PACKETS");
+          writeToNotes("======================================");
+
+          QVector<QByteArray> uartPackets;
+
+          QByteArray currentPacket;
+
+          quint16 packetNumber = 0;
+
+          auto appendUInt16Packet = [&](QByteArray &packet, quint16 value)
+          {
+              packet.append(char((value >> 8) & 0xFF));
+              packet.append(char(value & 0xFF));
+          };
+
+          currentPacket.append(char(0x2F));
+          currentPacket.append(char(0x2F));
+
+          appendUInt16Packet(currentPacket, packetNumber);
+
+          // Placeholder for Packet Length
+          appendUInt16Packet(currentPacket, 0);
+
+          const int MAX_PACKET_SIZE = 1024;
+
+          for(const QByteArray &loom : loomPackets)
+          {
+              if(currentPacket.size() + loom.size() > MAX_PACKET_SIZE)
+              {
+                  quint16 packetLength = currentPacket.size() - 6;
+
+                  currentPacket[4] = char((packetLength >> 8) & 0xFF);
+                  currentPacket[5] = char(packetLength & 0xFF);
+
+                  uartPackets.append(currentPacket);
+
+                  packetNumber++;
+
+                  currentPacket.clear();
+
+                  currentPacket.append(char(0x2F));
+                  currentPacket.append(char(0x2F));
+
+                  appendUInt16Packet(currentPacket, packetNumber);
+
+                  appendUInt16Packet(currentPacket, 0);
+              }
+
+              currentPacket.append(loom);
+          }
+
+          if(currentPacket.size() > 6)
+          {
+              quint16 packetLength = currentPacket.size() - 6;
+
+              currentPacket[4] = char((packetLength >> 8) & 0xFF);
+              currentPacket[5] = char(packetLength & 0xFF);
+
+              uartPackets.append(currentPacket);
+          }
+
+          writeToNotes("");
+
+          for(int i = 0; i < uartPackets.size(); i++)
+          {
+              writeToNotes(QString("--------------------------------"));
+              writeToNotes(QString("UART Packet %1").arg(i));
+              writeToNotes(QString("Size : %1 Bytes").arg(uartPackets[i].size()));
+              writeToNotes(uartPackets[i].toHex(' '));
+          }
+
+          //UART Packet Creation of 1024 ends --------------------------
+
 
       }
 
