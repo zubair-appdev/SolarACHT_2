@@ -1,0 +1,21 @@
+0000          Loom No
+
+0010          Connector Length
+
+0002          No Of Nets
+
+0000          Net0
+
+0004          Net Length
+
+01 01
+
+03 01
+
+0001          Net1
+
+0004
+
+01 02
+
+03 02
