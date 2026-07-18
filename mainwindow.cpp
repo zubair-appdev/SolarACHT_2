@@ -1719,6 +1719,7 @@ void MainWindow::onPortSelected(const QString &portName)
 void MainWindow::on_pushButton_test_clicked()
 {
     ui->stackedWidget->setCurrentIndex(12);
+    ui->comboBox_files->clear();
     ui->comboBox_files->addItems(getCableNames());
 }
 
