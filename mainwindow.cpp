@@ -454,9 +454,10 @@ void MainWindow::on_pushButton_saveUser_clicked()
 
 void MainWindow::on_pushButton_addUser_clicked()
 {
-    ui->stackedWidget->setCurrentIndex(2);
+    ui->stackedWidget->setCurrentWidget(ui->page_userPassword);
     role="user";
     ui->label_addNewUser->setText("Create User Account");
+     adminPermissionFlag = true;
 }
 
 void MainWindow::on_pushButton_addAdmin_clicked()
@@ -494,39 +495,63 @@ void MainWindow::on_pushButton_backToLogin_clicked()
 
 void MainWindow::on_pushButton_valAdminForUserPass_clicked()
 {
-
     if (!db.isOpen())
         return;
+
     QString username = ui->lineEdit_admin->text().trimmed();
     QString password = ui->lineEdit_adminPass->text().trimmed();
 
+    // Hash password using SHA-256
+    QByteArray hashedPassword =
+            QCryptographicHash::hash(
+                password.toUtf8(),
+                QCryptographicHash::Sha256
+                ).toHex();
+
     QSqlQuery query(db);
+
     query.prepare(
                 "SELECT role FROM loginData "
                 "WHERE role='admin' "
                 "AND username=:u "
-                "AND password=:p");
-    query.bindValue(":u", username);
-    query.bindValue(":p", password);
+                "AND password=:p"
+                );
 
-    if(query.exec() && query.next())
+    query.bindValue(":u", username);
+    query.bindValue(":p", hashedPassword);
+
+    if (query.exec() && query.next())
     {
         role = "user";
 
-        ui->stackedWidget->setCurrentIndex(8);
+        if (adminPermissionFlag)
+        {
+            // Create User Page
+            ui->stackedWidget->setCurrentIndex(2);
+            adminPermissionFlag = false;
+        }
+        else
+        {
+            // Forgot Password Validation Page
+            ui->stackedWidget->setCurrentIndex(8);
+        }
 
         ui->label_titleForChangePassword
                 ->setText("Recover User Account");
+
         ui->lineEdit_admin->clear();
         ui->lineEdit_adminPass->clear();
     }
     else
     {
-        QMessageBox::warning(this,
-                             "Invalid",
-                             "Invalid username or password");
+        QMessageBox::warning(
+                    this,
+                    "Invalid",
+                    "Invalid username or password"
+                    );
     }
 }
+
 
 void MainWindow::on_pushButton_update_clicked()
 {
@@ -534,45 +559,74 @@ void MainWindow::on_pushButton_update_clicked()
     QString password = ui->lineEdit_changePassword->text().trimmed();
     QString confirmPassword = ui->lineEdit_confimPassword->text().trimmed();
 
-    if(username.isEmpty() || password.isEmpty() ||confirmPassword.isEmpty())
+    if (username.isEmpty() || password.isEmpty() || confirmPassword.isEmpty())
     {
-        QMessageBox::information(this,"Empty Fields","Fill all the fields");
+        QMessageBox::information(
+                    this,
+                    "Empty Fields",
+                    "Fill all the fields"
+                    );
         return;
     }
 
-
-    if(password != confirmPassword)
+    if (password != confirmPassword)
     {
-        QMessageBox::warning(this,
-                             "Password Mismatch",
-                             "Password and Confirm Password do not match.");
+        QMessageBox::warning(
+                    this,
+                    "Password Mismatch",
+                    "Password and Confirm Password do not match."
+                    );
         return;
     }
+
     if (!db.isOpen())
         return;
 
-    QSqlQuery query(db);
-    query.prepare("UPDATE loginData SET password=:pw "
-                  "WHERE username=:u AND role=:r");
+    // Hash the new password using SHA-256
+    QByteArray hashedPassword =
+            QCryptographicHash::hash(
+                password.toUtf8(),
+                QCryptographicHash::Sha256
+                ).toHex();
 
-    query.bindValue(":pw", password);
+    QSqlQuery query(db);
+
+    query.prepare(
+                "UPDATE loginData SET password=:pw "
+                "WHERE username=:u AND role=:r"
+                );
+
+    query.bindValue(":pw", hashedPassword);
     query.bindValue(":u", username);
     query.bindValue(":r", role);
 
-    qDebug()<<username<<"*********";
-    qDebug()<<role<<"**************";
+    qDebug() << "Updating password for:" << username;
+    qDebug() << "Role:" << role;
 
-    if (!query.exec()) {
-        qWarning() << "updatePassword failed:" << query.lastError();
+    if (!query.exec())
+    {
+        qWarning() << "updatePassword failed:"
+                   << query.lastError();
         return;
     }
-    if(query.numRowsAffected() == 0)
+
+    if (query.numRowsAffected() == 0)
     {
         QString msg = QString("Username not found in %1").arg(role);
-        QMessageBox::warning(this,"Invalid User",msg);
+
+        QMessageBox::warning(
+                    this,
+                    "Invalid User",
+                    msg
+                    );
         return;
     }
-    QMessageBox::information(this,"Success","Password updated successfully");
+
+    QMessageBox::information(
+                this,
+                "Success",
+                "Password updated successfully"
+                );
 }
 void MainWindow::on_pushButton_home_clicked()
 {
@@ -765,13 +819,14 @@ void MainWindow::on_pushButton_dataEntry_clicked()
 
 void MainWindow::on_pushButton_uploadPatch_clicked()
 {
-    if(ui->lineEdit_cableName->text().trimmed().isEmpty())
-    {
-        QMessageBox::information(this,"Field Empty","Enter cable name");
-        return;
-    }
-    QString tableName =
-            ui->lineEdit_cableName->text().trimmed() + "_patch";
+      if(ui->lineEdit_cableName->text().trimmed().isEmpty())
+      {
+          QMessageBox::information(this,"Field Empty","Enter cable name");
+          return;
+      }
+      ui->textEdit_ErrorLog->clear();
+      QString tableName =
+                  ui->lineEdit_cableName->text().trimmed() + "_patch";
 
     tableName.replace(" ", "_");
 
@@ -797,6 +852,9 @@ void MainWindow::on_pushButton_uploadCable_clicked()
         QMessageBox::information(this,"Field Empty","Enter cable name");
         return;
     }
+
+    ui->textEdit_ErrorLog->clear();
+
     QString tableName =
             ui->lineEdit_cableName->text().trimmed() + "_harness";
 
@@ -861,6 +919,7 @@ bool MainWindow::processCsvFile(const QString &fileName,
     QFile file(fileName);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         writeToNotes("❌ Failed to open file: " + fileName);
+         ui->textEdit_ErrorLog->append("❌ Failed to open file: " + fileName);
         return false;
     }
 
@@ -906,6 +965,7 @@ bool MainWindow::processCsvFile(const QString &fileName,
         if (type == "patch") {
             if (parts.size() != 5) {
                 writeToNotes("Malformed PATCH line " + QString::number(lineNumber));
+                ui->textEdit_ErrorLog->append("Malformed PATCH line " + QString::number(lineNumber));
                 return false;
             }
 
@@ -954,6 +1014,7 @@ bool MainWindow::processCsvFile(const QString &fileName,
             if (parts.size() != 6)
             {
                 writeToNotes("❌ Malformed HARNESS line " + QString::number(lineNumber));
+                 ui->textEdit_ErrorLog->append("❌ Malformed HARNESS line " + QString::number(lineNumber));
                 return false;
             }
             cableTemp.append(parts[0].trimmed());
@@ -972,6 +1033,7 @@ bool MainWindow::processCsvFile(const QString &fileName,
     if (type == "patch") {
         if (!savePatchToDb(cableNameFromUI)) {
             writeToNotes("❌ Failed to save PATCH data to DB");
+            ui->textEdit_ErrorLog->append("❌ Failed to save PATCH data to DB");
             return false;
         }
         writeToNotes("💾 Saved PATCH data to DB for cable: " + cableNameFromUI);
@@ -1028,6 +1090,10 @@ bool MainWindow::savePatchToDb(const QString &cableName)
         writeToNotes("❌ Failed to create table "
                      + tableName + ": "
                      + q.lastError().text());
+        ui->textEdit_ErrorLog->append("❌ Failed to create table "
+                                      + tableName + ": "
+                                      + q.lastError().text());
+
 
         return false;
     }
@@ -1037,6 +1103,8 @@ bool MainWindow::savePatchToDb(const QString &cableName)
     {
         writeToNotes("❌ Failed to clear table "
                      + tableName);
+        ui->textEdit_ErrorLog->append("❌ Failed to clear table "
+                                      + tableName);
 
         return false;
     }
@@ -1063,6 +1131,9 @@ bool MainWindow::savePatchToDb(const QString &cableName)
             writeToNotes("❌ Insert failed in "
                          + tableName + ": "
                          + q.lastError().text());
+            ui->textEdit_ErrorLog->append("❌ Insert failed in "
+                                          + tableName + ": "
+                                          + q.lastError().text());
 
             return false;
         }
@@ -1116,6 +1187,7 @@ bool MainWindow::validateHarnessData(const QVector<QString> &cableTemp,
     }
 
     if (!extraLog.isEmpty()) {
+        ui->textEdit_ErrorLog->append(extraLog);
         writeToNotes(extraLog);
         return false;
     }
@@ -1128,6 +1200,7 @@ bool MainWindow::validateHarnessData(const QVector<QString> &cableTemp,
                 QStringList(destMiss.begin(), destMiss.end()).join(", ");
 
         writeToNotes("❌ " + missingLog);
+        ui->textEdit_ErrorLog->append("❌ " + missingLog);
         return false;
     }
 
@@ -1160,11 +1233,12 @@ bool MainWindow::validateHarnessData(const QVector<QString> &cableTemp,
 
         if (!expRegex.match(v).hasMatch())
         {
-            writeToNotes(
-                QString("Invalid expValue at index %1: %2")
-                    .arg(i)
-                    .arg(v));
-
+            writeToNotes(QString("Invalid expValue at index %1: %2")
+                             .arg(i).arg(v));
+            ui->textEdit_ErrorLog->append(
+                "Invalid expValue at index " + QString::number(i) +
+                ": " +v
+            );
             return false;
         }
     }
@@ -1222,18 +1296,25 @@ bool MainWindow::saveHarnessToDb(const QString &cableName,
     if (!q.exec(create)) {
         writeToNotes("❌ Failed to create table " + tableName + ": " +
                      q.lastError().text());
+
+        ui->textEdit_ErrorLog->append("❌ Failed to create table " + tableName + ": " +
+                                      q.lastError().text());
         return false;
     }
 
     if (!q.exec("DELETE FROM " + tableName)) {
         writeToNotes("❌ Failed to clear table " + tableName + ": " +
                      q.lastError().text());
+        ui->textEdit_ErrorLog->append("❌ Failed to clear table " + tableName + ": " +
+                                      q.lastError().text());
         return false;
     }
 
     if (!db.transaction()) {
         writeToNotes("❌ Failed to start transaction: " +
                      db.lastError().text());
+        ui->textEdit_ErrorLog->append("❌ Failed to clear table " + tableName + ": " +
+                                      q.lastError().text());
         return false;
     }
 
@@ -1256,6 +1337,8 @@ bool MainWindow::saveHarnessToDb(const QString &cableName,
 
             writeToNotes("❌ Insert failed in " + tableName + ": " +
                          q.lastError().text());
+            ui->textEdit_ErrorLog->append("❌ Insert failed in " + tableName + ": " +
+                                          q.lastError().text());
 
             return false;
         }
@@ -1264,6 +1347,8 @@ bool MainWindow::saveHarnessToDb(const QString &cableName,
     if (!db.commit()) {
         writeToNotes("❌ Failed to commit transaction: " +
                      db.lastError().text());
+        ui->textEdit_ErrorLog->append("❌ Failed to commit transaction: " +
+                                      db.lastError().text());
         return false;
     }
 
@@ -1281,8 +1366,13 @@ bool MainWindow::validatePatchLine(int lineNumber,
     if (!tpRegex.match(pCon).hasMatch())
     {
         writeToNotes(QString("Invalid PatchCon at line %1: %2 (must be TP-1 to TP-16)")
-                     .arg(lineNumber)
-                     .arg(pCon));
+
+                         .arg(lineNumber)
+                         .arg(pCon));
+        ui->textEdit_ErrorLog->append(QString(
+                                          "Invalid PatchCon at line %1: %2 (must be TP-1)")
+                                      .arg(lineNumber)
+                                      .arg(pCon));
         return false;
     }
 
@@ -1292,8 +1382,14 @@ bool MainWindow::validatePatchLine(int lineNumber,
     if (!ok || pPin < 1 || pPin > 128)
     {
         writeToNotes(QString("Invalid PatchPin at line %1: %2 (must be 1–128)")
-                     .arg(lineNumber)
-                     .arg(pPinStr));
+
+                         .arg(lineNumber)
+                         .arg(pPinStr));
+        ui->textEdit_ErrorLog->append(QString(
+                                          "Invalid PatchPin at line %1: %2 (must be 1–128)")
+                                      .arg(lineNumber)
+                                      .arg(pPinStr));
+
         return false;
     }
 
