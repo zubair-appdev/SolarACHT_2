@@ -212,6 +212,9 @@ private:
     QString role;
     QString currentAdmin;
 
+    bool adminPermissionFlag = false;
+
+
     QStringList cableList;
     QStringList userConList;
     QStringList userPinList;

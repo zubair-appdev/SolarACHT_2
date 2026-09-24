@@ -9,8 +9,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>849</width>
-    <height>518</height>
+    <width>962</width>
+    <height>684</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -53,7 +53,7 @@
     gridline-color: #d9d9d9;</string>
       </property>
       <property name="currentIndex">
-       <number>4</number>
+       <number>10</number>
       </property>
       <widget class="QWidget" name="page">
        <layout class="QGridLayout" name="gridLayout_2">
@@ -298,7 +298,7 @@ QPushButton:hover {
 }</string>
                   </property>
                   <property name="text">
-                   <string>Forget Password</string>
+                   <string>Forgot Password</string>
                   </property>
                  </widget>
                 </item>
@@ -2046,7 +2046,7 @@ QPushButton:pressed
               <string notr="true">border:none;</string>
              </property>
              <property name="text">
-              <string>Admin login required for recovering user password</string>
+              <string>Admin login required for creating/recovering user password</string>
              </property>
              <property name="alignment">
               <set>Qt::AlignCenter</set>
@@ -2548,19 +2548,6 @@ QPushButton:pressed
       </widget>
       <widget class="QWidget" name="page_recoverAccount">
        <layout class="QGridLayout" name="gridLayout_8">
-        <item row="0" column="1">
-         <spacer name="verticalSpacer_18">
-          <property name="orientation">
-           <enum>Qt::Vertical</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>20</width>
-            <height>92</height>
-           </size>
-          </property>
-         </spacer>
-        </item>
         <item row="1" column="0">
          <spacer name="horizontalSpacer_13">
           <property name="orientation">
@@ -2570,6 +2557,45 @@ QPushButton:pressed
            <size>
             <width>182</width>
             <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item row="2" column="1">
+         <spacer name="verticalSpacer_25">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>301</width>
+            <height>177</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item row="1" column="2">
+         <spacer name="horizontalSpacer_14">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>182</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item row="0" column="1">
+         <spacer name="verticalSpacer_18">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>301</width>
+            <height>178</height>
            </size>
           </property>
          </spacer>
@@ -2805,32 +2831,6 @@ QPushButton:pressed
            </item>
           </layout>
          </widget>
-        </item>
-        <item row="1" column="2">
-         <spacer name="horizontalSpacer_14">
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>182</width>
-            <height>20</height>
-           </size>
-          </property>
-         </spacer>
-        </item>
-        <item row="2" column="1">
-         <spacer name="verticalSpacer_25">
-          <property name="orientation">
-           <enum>Qt::Vertical</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>20</width>
-            <height>92</height>
-           </size>
-          </property>
-         </spacer>
         </item>
        </layout>
       </widget>
@@ -3134,36 +3134,16 @@ QPushButton:pressed
       </widget>
       <widget class="QWidget" name="page_dataEntry">
        <layout class="QGridLayout" name="gridLayout_13">
-        <item row="0" column="1" colspan="2">
-         <spacer name="verticalSpacer_32">
-          <property name="orientation">
-           <enum>Qt::Vertical</enum>
+        <item row="3" column="0" colspan="4">
+         <widget class="QTextEdit" name="textEdit_ErrorLog">
+          <property name="font">
+           <font>
+            <pointsize>11</pointsize>
+           </font>
           </property>
-          <property name="sizeType">
-           <enum>QSizePolicy::Expanding</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>20</width>
-            <height>128</height>
-           </size>
-          </property>
-         </spacer>
+         </widget>
         </item>
-        <item row="1" column="0">
-         <spacer name="horizontalSpacer_23">
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>119</width>
-            <height>20</height>
-           </size>
-          </property>
-         </spacer>
-        </item>
-        <item row="1" column="1">
+        <item row="1" column="2" rowspan="2">
          <widget class="QFrame" name="frame_6">
           <property name="minimumSize">
            <size>
@@ -3430,7 +3410,7 @@ QPushButton:pressed
 }</string>
              </property>
              <property name="text">
-              <string>GetDetails</string>
+              <string>Get Details</string>
              </property>
             </widget>
            </item>
@@ -3545,7 +3525,33 @@ QPushButton:pressed
           </layout>
          </widget>
         </item>
-        <item row="1" column="2">
+        <item row="0" column="2">
+         <spacer name="verticalSpacer_32">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>28</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item row="1" column="1">
+         <spacer name="horizontalSpacer_23">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>119</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item row="1" column="3">
          <spacer name="horizontalSpacer_22">
           <property name="orientation">
            <enum>Qt::Horizontal</enum>
@@ -3562,17 +3568,22 @@ QPushButton:pressed
          </spacer>
         </item>
         <item row="2" column="1">
-         <spacer name="verticalSpacer_33">
-          <property name="orientation">
-           <enum>Qt::Vertical</enum>
+         <widget class="QLabel" name="label_10">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
           </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>20</width>
-            <height>46</height>
-           </size>
+          <property name="font">
+           <font>
+            <pointsize>11</pointsize>
+           </font>
           </property>
-         </spacer>
+          <property name="text">
+           <string>Error Log</string>
+          </property>
+         </widget>
         </item>
        </layout>
       </widget>
@@ -3595,7 +3606,7 @@ QPushButton:pressed
            <enum>QTabWidget::Triangular</enum>
           </property>
           <property name="currentIndex">
-           <number>0</number>
+           <number>1</number>
           </property>
           <widget class="QWidget" name="tab_patch">
            <attribute name="title">
@@ -3719,64 +3730,6 @@ QScrollBar::sub-page:horizontal
             </item>
             <item>
              <layout class="QHBoxLayout" name="horizontalLayout_7">
-              <item>
-               <widget class="QPushButton" name="pushButton_addRow">
-                <property name="styleSheet">
-                 <string notr="true">QPushButton
-{
-    background-color: #28A745;
-    color: white;
-    border: 1px solid #1E7E34;
-    border-radius: 6px;
-    padding: 6px 14px;
-    font-size: 13px;
-    font-weight: 600;
-}
-
-QPushButton:hover
-{
-    background-color: #218838;
-}
-
-QPushButton:pressed
-{
-    background-color: #1E7E34;
-}</string>
-                </property>
-                <property name="text">
-                 <string>ADD</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QPushButton" name="pushButton_delRow">
-                <property name="styleSheet">
-                 <string notr="true">QPushButton
-{
-    background-color: #DC3545;
-    color: white;
-    border: 1px solid #B02A37;
-    border-radius: 6px;
-    padding: 6px 14px;
-    font-size: 13px;
-    font-weight: 600;
-}
-
-QPushButton:hover
-{
-    background-color: #C82333;
-}
-
-QPushButton:pressed
-{
-    background-color: #B02A37;
-}</string>
-                </property>
-                <property name="text">
-                 <string>DELETE</string>
-                </property>
-               </widget>
-              </item>
               <item>
                <spacer name="horizontalSpacer_27">
                 <property name="orientation">
@@ -4050,26 +4003,37 @@ QScrollBar::sub-page:horizontal
                <layout class="QHBoxLayout" name="horizontalLayout_3">
                 <item>
                  <widget class="QPushButton" name="pushButton_addHarnessRow">
+                  <property name="minimumSize">
+                   <size>
+                    <width>101</width>
+                    <height>35</height>
+                   </size>
+                  </property>
                   <property name="styleSheet">
                    <string notr="true">QPushButton
 {
     background-color: #28A745;
     color: white;
-    border: 1px solid #1E7E34;
-    border-radius: 6px;
-    padding: 6px 14px;
-    font-size: 13px;
-    font-weight: 600;
+
+    border: 1px solid #FB8C00;
+    border-radius: 10px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
 }
 
 QPushButton:hover
 {
-    background-color: #218838;
+    background-color: #FFB74D;
 }
 
 QPushButton:pressed
 {
-    background-color: #1E7E34;
+    background-color: #F57C00;
+
+    padding-top: 10px;
+    padding-left: 10px;
 }</string>
                   </property>
                   <property name="text">
@@ -4079,26 +4043,37 @@ QPushButton:pressed
                 </item>
                 <item>
                  <widget class="QPushButton" name="pushButton_delHarnessRow">
+                  <property name="minimumSize">
+                   <size>
+                    <width>101</width>
+                    <height>35</height>
+                   </size>
+                  </property>
                   <property name="styleSheet">
                    <string notr="true">QPushButton
 {
-    background-color: #DC3545;
+    background-color:#DC3545;
     color: white;
-    border: 1px solid #B02A37;
-    border-radius: 6px;
-    padding: 6px 14px;
-    font-size: 13px;
-    font-weight: 600;
+
+    border: 1px solid #FB8C00;
+    border-radius: 10px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
 }
 
 QPushButton:hover
 {
-    background-color: #C82333;
+    background-color: #FFB74D;
 }
 
 QPushButton:pressed
 {
-    background-color: #B02A37;
+    background-color: #F57C00;
+
+    padding-top: 10px;
+    padding-left: 10px;
 }</string>
                   </property>
                   <property name="text">
@@ -4672,8 +4647,8 @@ QPushButton:pressed
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>849</width>
-     <height>21</height>
+     <width>962</width>
+     <height>22</height>
     </rect>
    </property>
   </widget>
