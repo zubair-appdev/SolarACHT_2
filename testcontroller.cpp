@@ -41,7 +41,7 @@ void TestController::setPORTNAME(const QString &portName)
     }
 
     serial->setPortName(portName);
-    serial->setBaudRate(921600);
+    serial->setBaudRate(115200);
     serial->setDataBits(QSerialPort::Data8);
     serial->setParity(QSerialPort::NoParity);
     serial->setStopBits(QSerialPort::OneStop);
@@ -55,8 +55,8 @@ void TestController::setPORTNAME(const QString &portName)
     }
     else
     {
-        qDebug() << "Serial port "<<serial->portName()<<" opened successfully at baud rate 921600";
-        emit portOpening("Serial port "+serial->portName()+" opened successfully at baud rate 921600");
+        qDebug() << "Serial port "<<serial->portName()<<" opened successfully at baud rate 115200";
+        emit portOpening("Serial port "+serial->portName()+" opened successfully at baud rate 115200");
     }
 }
 
@@ -237,6 +237,8 @@ void TestController::startTwoWireTransmission(
 void TestController::onReadyRead()
 {
     buffer.append(serial->readAll());
+
+    qDebug()<<buffer.toHex(' ').toUpper();
 
     const QByteArray ack =
             QByteArray::fromHex("41434BEEB6");

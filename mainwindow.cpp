@@ -86,6 +86,7 @@ MainWindow::~MainWindow()
 {
     delete ui;
 }
+
 bool MainWindow::initializeDatabase()
 {
     for (const QString &driver : QSqlDatabase::drivers())
@@ -100,14 +101,47 @@ bool MainWindow::initializeDatabase()
         db = QSqlDatabase::addDatabase("QSQLITE", "mainConnection");
 
     QStringList list = QSqlDatabase::connectionNames();
+
     for (const QString &name : list)
         qDebug() << "Active connection:" << name;
 
-    db.setDatabaseName("ACHT.db");
+    // ---------------------------------------------------------
+    // Store database in user's writable AppData folder
+    // ---------------------------------------------------------
 
-    if (!db.open()) {
-        qWarning() << "Failed to open database:" << db.lastError().text();
-        writeToNotes("Failed To Open Database "+db.lastError().text());
+    QString appDataPath =
+            QStandardPaths::writableLocation(
+                QStandardPaths::AppLocalDataLocation);
+
+    // Create directory if it doesn't exist
+    if (!QDir().mkpath(appDataPath))
+    {
+        qWarning() << "Failed to create AppData directory:"
+                   << appDataPath;
+
+        writeToNotes("Failed to create AppData directory: "
+                     + appDataPath);
+
+        return false;
+    }
+
+    QString dbPath =
+            appDataPath + "/ACHT.db";
+
+    db.setDatabaseName(dbPath);
+
+    // ---------------------------------------------------------
+    // Open database
+    // ---------------------------------------------------------
+
+    if (!db.open())
+    {
+        qWarning() << "Failed to open database:"
+                   << db.lastError().text();
+
+        writeToNotes("Failed To Open Database "
+                     + db.lastError().text());
+
         return false;
     }
 
@@ -116,26 +150,36 @@ bool MainWindow::initializeDatabase()
              << "connection name:" << db.connectionName();
 
     writeToNotes("Database file: " + db.databaseName()
-                 + " isOpen : " + db.isOpen()
-                 + " connection name :" + db.connectionName());
+                 + " isOpen : " + QString::number(db.isOpen())
+                 + " connection name : " + db.connectionName());
 
-    // Create table if not exists
+    // ---------------------------------------------------------
+    // Create loginData table if it doesn't exist
+    // ---------------------------------------------------------
+
     QSqlQuery query(db);
-    QString createTable =
-        "CREATE TABLE IF NOT EXISTS loginData ("
-        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-        "username TEXT NOT NULL UNIQUE, "
-        "password TEXT NOT NULL, "
-        "role TEXT NOT NULL)";
 
-    if (!query.exec(createTable)) {
-        qWarning() << "Failed to create table: " << query.lastError().text();
-        writeToNotes("Failed to create table: " + query.lastError().text());
+    QString createTable =
+            "CREATE TABLE IF NOT EXISTS loginData ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "username TEXT NOT NULL UNIQUE, "
+            "password TEXT NOT NULL, "
+            "role TEXT NOT NULL)";
+
+    if (!query.exec(createTable))
+    {
+        qWarning() << "Failed to create table:"
+                   << query.lastError().text();
+
+        writeToNotes("Failed to create table: "
+                     + query.lastError().text());
+
         return false;
     }
 
     return true;
 }
+
 void MainWindow::writeToNotes(const QString &message)
 {
     if (!logFile.isOpen()) {
@@ -192,7 +236,7 @@ void MainWindow::on_pushButton_Save_clicked()
 
     if(username.isEmpty() || password.isEmpty())
     {
-       QMessageBox::information(this,"Empty","Fill all the fields");
+        QMessageBox::information(this,"Empty","Fill all the fields");
         return;
     }
 
@@ -332,11 +376,11 @@ void MainWindow::on_pushButton_saveUser_clicked()
     QSqlQuery query(db);
 
     query.prepare(
-        "INSERT INTO loginData "
-        "(username, password, role) "
-        "VALUES "
-        "(:username, :password, :role)"
-    );
+                "INSERT INTO loginData "
+                "(username, password, role) "
+                "VALUES "
+                "(:username, :password, :role)"
+                );
 
     query.bindValue(":username", username);
     query.bindValue(":password", hashedPassword);
@@ -350,7 +394,7 @@ void MainWindow::on_pushButton_saveUser_clicked()
     else
     {
         QMessageBox::warning(this,"Insert Failed","User already exists");
-         writeToNotes( "Insert failed: "+query.lastError().text());
+        writeToNotes( "Insert failed: "+query.lastError().text());
     }
 }
 
@@ -370,22 +414,22 @@ void MainWindow::on_pushButton_addAdmin_clicked()
 
 void MainWindow::on_pushButton_validateMasterKey_clicked()
 {
-   QString masterKey =ui->lineEdit_masterKey->text().trimmed();
-   if(masterKey == "")
-   {
-       QMessageBox::information(this,"Empty Field","Enter master key first");
-       return;
-   }
-   if(masterKey=="maytech1234")
-   {
-       ui->stackedWidget->setCurrentIndex(2);
-       role ="admin";
-       ui->lineEdit_masterKey->clear();
-   }
-   else
-   {
-    QMessageBox::information(this,"Invalid","Wrong master key entered");
-   }
+    QString masterKey =ui->lineEdit_masterKey->text().trimmed();
+    if(masterKey == "")
+    {
+        QMessageBox::information(this,"Empty Field","Enter master key first");
+        return;
+    }
+    if(masterKey=="maytech1234")
+    {
+        ui->stackedWidget->setCurrentIndex(2);
+        role ="admin";
+        ui->lineEdit_masterKey->clear();
+    }
+    else
+    {
+        QMessageBox::information(this,"Invalid","Wrong master key entered");
+    }
 
 }
 
@@ -404,10 +448,10 @@ void MainWindow::on_pushButton_valAdminForUserPass_clicked()
 
     QSqlQuery query(db);
     query.prepare(
-        "SELECT role FROM loginData "
-        "WHERE role='admin' "
-        "AND username=:u "
-        "AND password=:p");
+                "SELECT role FROM loginData "
+                "WHERE role='admin' "
+                "AND username=:u "
+                "AND password=:p");
     query.bindValue(":u", username);
     query.bindValue(":p", password);
 
@@ -467,7 +511,7 @@ void MainWindow::on_pushButton_update_clicked()
     if (!query.exec()) {
         qWarning() << "updatePassword failed:" << query.lastError();
         return;
-     }
+    }
     if(query.numRowsAffected() == 0)
     {
         QString msg = QString("Username not found in %1").arg(role);
@@ -478,10 +522,10 @@ void MainWindow::on_pushButton_update_clicked()
 }
 void MainWindow::on_pushButton_home_clicked()
 {
-  ui->stackedWidget->setCurrentIndex(0);
-  ui->lineEdit_usernameExist->clear();
-  ui->lineEdit_changePassword->clear();
-  ui->lineEdit_confimPassword->clear();
+    ui->stackedWidget->setCurrentIndex(0);
+    ui->lineEdit_usernameExist->clear();
+    ui->lineEdit_changePassword->clear();
+    ui->lineEdit_confimPassword->clear();
 }
 
 void MainWindow::on_pushButton_recAdminPass_clicked()
@@ -502,7 +546,7 @@ void MainWindow::on_pushButton_recAdminPass_clicked()
     }
     else
     {
-     QMessageBox::information(this,"Invalid","Wrong master key entered");
+        QMessageBox::information(this,"Invalid","Wrong master key entered");
     }
 
 }
@@ -571,15 +615,15 @@ void MainWindow::loadUsers()
 
     if(!query.exec())
     {
-       qDebug() << query.lastError().text();
-       return;
-     }
+        qDebug() << query.lastError().text();
+        return;
+    }
     int row = 0;
 
     while(query.next())
     {
         qDebug() << query.value(0).toString()
-                  << query.value(1).toString();
+                 << query.value(1).toString();
         ui->tableWidget_users->insertRow(row);
 
         ui->tableWidget_users->setItem(
@@ -598,7 +642,7 @@ void MainWindow::loadUsers()
 void MainWindow::on_pushButton_deleteSelected_clicked()
 {
     int row =
-        ui->tableWidget_users->currentRow();
+            ui->tableWidget_users->currentRow();
 
     if(row < 0)
     {
@@ -610,7 +654,7 @@ void MainWindow::on_pushButton_deleteSelected_clicked()
     }
 
     QString username =
-        ui->tableWidget_users
+            ui->tableWidget_users
             ->item(row,0)
             ->text();
 
@@ -637,8 +681,8 @@ void MainWindow::on_pushButton_deleteSelected_clicked()
     QSqlQuery query(db);
 
     query.prepare(
-        "DELETE FROM loginData "
-        "WHERE username=:u");
+                "DELETE FROM loginData "
+                "WHERE username=:u");
 
     query.bindValue(":u", username);
 
@@ -667,28 +711,28 @@ void MainWindow::on_pushButton_dataEntry_clicked()
 
 void MainWindow::on_pushButton_uploadPatch_clicked()
 {
-      if(ui->lineEdit_cableName->text().trimmed().isEmpty())
-      {
-          QMessageBox::information(this,"Field Empty","Enter cable name");
-          return;
-      }
-      QString tableName =
-                  ui->lineEdit_cableName->text().trimmed() + "_patch";
+    if(ui->lineEdit_cableName->text().trimmed().isEmpty())
+    {
+        QMessageBox::information(this,"Field Empty","Enter cable name");
+        return;
+    }
+    QString tableName =
+            ui->lineEdit_cableName->text().trimmed() + "_patch";
 
-          tableName.replace(" ", "_");
+    tableName.replace(" ", "_");
 
-          // CHECK TABLE EXISTS
-          if(db.tables().contains(tableName))
-          {
-              QMessageBox::warning(
-                          this,
-                          "Table Exists",
-                          "Cable name already exists.");
+    // CHECK TABLE EXISTS
+    if(db.tables().contains(tableName))
+    {
+        QMessageBox::warning(
+                    this,
+                    "Table Exists",
+                    "Cable name already exists.");
 
-              return;
-          }
+        return;
+    }
 
-      openCsvFile("patch");
+    openCsvFile("patch");
 }
 
 
@@ -700,17 +744,17 @@ void MainWindow::on_pushButton_uploadCable_clicked()
         return;
     }
     QString tableName =
-                ui->lineEdit_cableName->text().trimmed() + "_harness";
+            ui->lineEdit_cableName->text().trimmed() + "_harness";
 
-        tableName.replace(" ", "_");
+    tableName.replace(" ", "_");
 
-        // CHECK TABLE EXISTS
-        if(db.tables().contains(tableName))
-        {
-            QMessageBox::warning(this,"Table Exists", "Cable name already exists");
+    // CHECK TABLE EXISTS
+    if(db.tables().contains(tableName))
+    {
+        QMessageBox::warning(this,"Table Exists", "Cable name already exists");
 
-            return;
-        }
+        return;
+    }
     openCsvFile("harness");
 }
 void MainWindow::openCsvFile(const QString &fileType)
@@ -734,9 +778,9 @@ void MainWindow::openCsvFile(const QString &fileType)
         if (fileToProcess.isEmpty())
         {
             QMessageBox::critical(
-                this,
-                "Error",
-                "Failed to convert Excel file.");
+                        this,
+                        "Error",
+                        "Failed to convert Excel file.");
 
             return;
         }
@@ -840,9 +884,9 @@ bool MainWindow::processCsvFile(const QString &fileName,
             // ⭐ LOG SUCCESSFUL PATCH LINE
             writeToNotes("PATCH Line OK (" + QString::number(lineNumber) + "): " +
                          parts[0].trimmed() + ", " +
-                         parts[1].trimmed() + ", " +
-                         parts[2].trimmed() + ", " +
-                         pCon + ", " + pPinStr);
+                    parts[1].trimmed() + ", " +
+                    parts[2].trimmed() + ", " +
+                    pCon + ", " + pPinStr);
 
             cableList.append(parts[0].trimmed());
             userConList.append(parts[1].trimmed());
@@ -853,7 +897,7 @@ bool MainWindow::processCsvFile(const QString &fileName,
         }
         else if (type == "harness")
         {
-\
+            \
             if (parts.size() != 6)
             {
                 writeToNotes("❌ Malformed HARNESS line " + QString::number(lineNumber));
@@ -917,14 +961,14 @@ bool MainWindow::savePatchToDb(const QString &cableName)
     QSqlQuery q(db);
 
     QString create =
-        "CREATE TABLE IF NOT EXISTS " + tableName + " ("
-        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
-        "cable TEXT,"
-        "userCon TEXT,"
-        "userPin TEXT,"
-        "patchCon TEXT,"
-        "patchPin INTEGER"
-        ")";
+            "CREATE TABLE IF NOT EXISTS " + tableName + " ("
+                                                        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                                                        "cable TEXT,"
+                                                        "userCon TEXT,"
+                                                        "userPin TEXT,"
+                                                        "patchCon TEXT,"
+                                                        "patchPin INTEGER"
+                                                        ")";
 
     if (!q.exec(create))
     {
@@ -995,11 +1039,11 @@ bool MainWindow::validateHarnessData(const QVector<QString> &cableTemp,
 
         for (int j = 0; j < userConList.size(); j++) {
             if (sourceConTemp[i] == userConList[j] &&
-                sourcePinTemp[i] == userPinList[j])
+                    sourcePinTemp[i] == userPinList[j])
                 matchSrc++;
 
             if (destConTemp[i] == userConList[j] &&
-                destPinTemp[i] == userPinList[j])
+                    destPinTemp[i] == userPinList[j])
                 matchDst++;
         }
 
@@ -1009,13 +1053,13 @@ bool MainWindow::validateHarnessData(const QVector<QString> &cableTemp,
         if (matchDst == 0)
             destMiss.append(destConTemp[i] + "-" + destPinTemp[i]);
 
-//        if (matchSrc > 1)
-//            extraLog += QString("⚠ EXTRA source append at index %1: %2-%3\n")
-//                            .arg(i).arg(sourceConTemp[i]).arg(sourcePinTemp[i]);
+        //        if (matchSrc > 1)
+        //            extraLog += QString("⚠ EXTRA source append at index %1: %2-%3\n")
+        //                            .arg(i).arg(sourceConTemp[i]).arg(sourcePinTemp[i]);
 
-//        if (matchDst > 1)
-//            extraLog += QString("⚠ EXTRA destination append at index %1: %2-%3\n")
-//                            .arg(i).arg(destConTemp[i]).arg(destPinTemp[i]);
+        //        if (matchDst > 1)
+        //            extraLog += QString("⚠ EXTRA destination append at index %1: %2-%3\n")
+        //                            .arg(i).arg(destConTemp[i]).arg(destPinTemp[i]);
     }
 
     if (!extraLog.isEmpty()) {
@@ -1025,10 +1069,10 @@ bool MainWindow::validateHarnessData(const QVector<QString> &cableTemp,
 
     if (!sourceMiss.isEmpty() || !destMiss.isEmpty()) {
         QString missingLog =
-            "Missing Source: " +
-            QStringList(sourceMiss.begin(), sourceMiss.end()).join(", ") + " | " +
-            "Missing Destination: " +
-            QStringList(destMiss.begin(), destMiss.end()).join(", ");
+                "Missing Source: " +
+                QStringList(sourceMiss.begin(), sourceMiss.end()).join(", ") + " | " +
+                "Missing Destination: " +
+                QStringList(destMiss.begin(), destMiss.end()).join(", ");
 
         writeToNotes("❌ " + missingLog);
         return false;
@@ -1039,24 +1083,24 @@ bool MainWindow::validateHarnessData(const QVector<QString> &cableTemp,
         QString v = expTemp[i];
 
         if ((!v.startsWith("<") && !v.startsWith(">")) ||
-            v.mid(1).toInt() < 1 || v.mid(1).toInt() > 100)
+                v.mid(1).toInt() < 1 || v.mid(1).toInt() > 100)
         {
             writeToNotes(QString("Invalid expValue at index %1: %2")
-                             .arg(i).arg(v));
+                         .arg(i).arg(v));
             return false;
         }
     }
 
     // Validate Voltage
-//    for (int i = 0; i < voltTemp.size(); i++) {
-//        QString v = voltTemp[i];
+    //    for (int i = 0; i < voltTemp.size(); i++) {
+    //        QString v = voltTemp[i];
 
-//        if (v != "250V" && v != "500V") {
-//            writeToNotes(QString("❌ Invalid Voltage at index %1: %2")
-//                             .arg(i).arg(v));
-//            return false;
-//        }
-//    }
+    //        if (v != "250V" && v != "500V") {
+    //            writeToNotes(QString("❌ Invalid Voltage at index %1: %2")
+    //                             .arg(i).arg(v));
+    //            return false;
+    //        }
+    //    }
 
     // ---------------------------------------------------------
     // PRINT ALL HARNESS DATA AFTER SUCCESSFUL VALIDATION
@@ -1066,14 +1110,14 @@ bool MainWindow::validateHarnessData(const QVector<QString> &cableTemp,
     for (int i = 0; i < sourceConTemp.size(); i++) {
 
         QString log = QString(
-                          "HARNESS Line OK (%1): Cable: %2 , SRC: %3-%4 → DEST: %5-%6 , exp: %7")
-                          .arg(i + 1)
-                          .arg(cableTemp[i])              // <--- NEW
-                          .arg(sourceConTemp[i])
-                          .arg(sourcePinTemp[i])
-                          .arg(destConTemp[i])
-                          .arg(destPinTemp[i])
-                          .arg(expTemp[i]);
+                    "HARNESS Line OK (%1): Cable: %2 , SRC: %3-%4 → DEST: %5-%6 , exp: %7")
+                .arg(i + 1)
+                .arg(cableTemp[i])              // <--- NEW
+                .arg(sourceConTemp[i])
+                .arg(sourcePinTemp[i])
+                .arg(destConTemp[i])
+                .arg(destPinTemp[i])
+                .arg(expTemp[i]);
 
         writeToNotes(log);
     }
@@ -1098,15 +1142,15 @@ bool MainWindow::saveHarnessToDb(const QString &cableName,
     QSqlQuery q(db);
 
     QString create =
-        "CREATE TABLE IF NOT EXISTS " + tableName + " ("
-        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
-        "cable TEXT,"
-        "sourceCon TEXT,"
-        "sourcePin TEXT,"
-        "destCon TEXT,"
-        "destPin TEXT,"
-        "exp TEXT"
-        ")";
+            "CREATE TABLE IF NOT EXISTS " + tableName + " ("
+                                                        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                                                        "cable TEXT,"
+                                                        "sourceCon TEXT,"
+                                                        "sourcePin TEXT,"
+                                                        "destCon TEXT,"
+                                                        "destPin TEXT,"
+                                                        "exp TEXT"
+                                                        ")";
 
     if (!q.exec(create)) {
         writeToNotes("❌ Failed to create table " + tableName + ": " +
@@ -1170,8 +1214,8 @@ bool MainWindow::validatePatchLine(int lineNumber,
     if (!tpRegex.match(pCon).hasMatch())
     {
         writeToNotes(QString("Invalid PatchCon at line %1: %2 (must be TP-1 to TP-16)")
-                         .arg(lineNumber)
-                         .arg(pCon));
+                     .arg(lineNumber)
+                     .arg(pCon));
         return false;
     }
 
@@ -1181,8 +1225,8 @@ bool MainWindow::validatePatchLine(int lineNumber,
     if (!ok || pPin < 1 || pPin > 128)
     {
         writeToNotes(QString("Invalid PatchPin at line %1: %2 (must be 1–128)")
-                         .arg(lineNumber)
-                         .arg(pPinStr));
+                     .arg(lineNumber)
+                     .arg(pPinStr));
         return false;
     }
 
@@ -1342,7 +1386,7 @@ void MainWindow::loadPatchTable(const QString &tableName)
     QStandardItemModel *displayModel = new QStandardItemModel(this);
 
     displayModel->setHorizontalHeaderLabels(
-                {"ID","Cable","User Con","User Pin","Patch Con","Patch Pin"});
+    {"ID","Cable","User Con","User Pin","Patch Con","Patch Pin"});
 
     for(int row = 0; row < patchModel->rowCount(); ++row)
     {
@@ -1412,10 +1456,10 @@ void MainWindow::loadHarnessTable(const QString &tableName)
 void MainWindow::on_pushButton_editTableView_clicked()
 {
     ui->tableView_harness->setEditTriggers(
-            QAbstractItemView::DoubleClicked |
-            QAbstractItemView::SelectedClicked |
-            QAbstractItemView::EditKeyPressed
-        );
+                QAbstractItemView::DoubleClicked |
+                QAbstractItemView::SelectedClicked |
+                QAbstractItemView::EditKeyPressed
+                );
     QMessageBox::information(this,"Editable","Now you can edit table");
 }
 
@@ -1425,7 +1469,7 @@ void MainWindow::on_pushButton_saveChanges_clicked()
     if(harnessModel->submitAll())
     {
         QMessageBox::information(this,"Success", "Changes saved successfully");
-      // Disable editing again
+        // Disable editing again
         ui->tableView_harness->setEditTriggers(QAbstractItemView::NoEditTriggers);
     }
     else
@@ -1444,10 +1488,10 @@ void MainWindow::on_pushButton_patchEdit_clicked()
 {
     ui->pushButton_patchCancel->setVisible(true);
     ui->tableView_patch->setEditTriggers(
-            QAbstractItemView::DoubleClicked |
-            QAbstractItemView::SelectedClicked |
-            QAbstractItemView::EditKeyPressed
-        );
+                QAbstractItemView::DoubleClicked |
+                QAbstractItemView::SelectedClicked |
+                QAbstractItemView::EditKeyPressed
+                );
     QMessageBox::information(this,"Editable","Now you can edit table");
 }
 
@@ -1458,7 +1502,7 @@ void MainWindow::on_pushButton_patchSave_clicked()
     {
         patchModel->select();
         QMessageBox::information(this,"Success","Changes saved successfully");
-       // Disable editing again
+        // Disable editing again
         ui->tableView_patch->setEditTriggers(QAbstractItemView::NoEditTriggers);
     }
     else
@@ -1469,7 +1513,7 @@ void MainWindow::on_pushButton_patchSave_clicked()
 
 void MainWindow::on_pushButton_patchCancel_clicked()
 {
-   patchModel->revertAll();
+    patchModel->revertAll();
     ui->tableView_patch->setEditTriggers(QAbstractItemView::NoEditTriggers);
 }
 
@@ -1559,10 +1603,10 @@ bool MainWindow::deleteCable(const QString &cableName)
 }
 
 QVector<QByteArray> MainWindow::constructUARTPacketsForTwoWire(
-    const QVector<QString> &sourceCon,
-    const QVector<QString> &sourcePin,
-    const QVector<QString> &destCon,
-    const QVector<QString> &destPin)
+        const QVector<QString> &sourceCon,
+        const QVector<QString> &sourcePin,
+        const QVector<QString> &destCon,
+        const QVector<QString> &destPin)
 {
     QVector<QByteArray> packets;
 
@@ -1603,29 +1647,29 @@ QVector<QByteArray> MainWindow::constructUARTPacketsForTwoWire(
         for (int i = start; i < end; ++i)
         {
             if (!sourceCon[i].startsWith("TP-") ||
-                !destCon[i].startsWith("TP-"))
+                    !destCon[i].startsWith("TP-"))
             {
                 QMessageBox::critical(
-                    this,
-                    "Invalid Connector Format",
-                    QString("Invalid connector format at row %1.\n\n"
-                            "Expected format: TP-<number>\n\n"
-                            "Source      : %2\n"
-                            "Destination : %3")
-                        .arg(i + 1)
-                        .arg(sourceCon[i])
-                        .arg(destCon[i]));
+                            this,
+                            "Invalid Connector Format",
+                            QString("Invalid connector format at row %1.\n\n"
+                                    "Expected format: TP-<number>\n\n"
+                                    "Source      : %2\n"
+                                    "Destination : %3")
+                            .arg(i + 1)
+                            .arg(sourceCon[i])
+                            .arg(destCon[i]));
 
                 return {};
             }
 
             quint8 srcCon = static_cast<quint8>(
-                                sourceCon[i].section('-', 1, 1).toUInt());
+                        sourceCon[i].section('-', 1, 1).toUInt());
 
             quint8 srcPin = static_cast<quint8>(sourcePin[i].toUInt());
 
             quint8 dstCon = static_cast<quint8>(
-                                destCon[i].section('-', 1, 1).toUInt());
+                        destCon[i].section('-', 1, 1).toUInt());
 
             quint8 dstPin = static_cast<quint8>(destPin[i].toUInt());
 
@@ -1698,7 +1742,7 @@ void MainWindow::portStatus(const QString &data)
         QMessageBox::critical(this,"Port Error","Please Select Port Using Above Dropdown");
     }
 
-    if(data.startsWith("Serial port ") && data.endsWith(" opened successfully at baud rate 921600"))
+    if(data.startsWith("Serial port ") && data.endsWith(" opened successfully at baud rate 115200"))
     {
         QMessageBox::information(this,"Success",data);
     }
@@ -1713,7 +1757,7 @@ void MainWindow::portStatus(const QString &data)
 
 void MainWindow::onPortSelected(const QString &portName)
 {
-  test->setPORTNAME(portName);
+    test->setPORTNAME(portName);
 }
 
 void MainWindow::on_pushButton_test_clicked()
@@ -1740,42 +1784,43 @@ void MainWindow::on_pushButton_run_clicked()
         return;
     }
 
-    else
+    QString cableName = ui->comboBox_files->currentText();
+
+    QVariantList patch = getPatchData(cableName);
+
+    QVariantList harness = getHarnessData(cableName);
+
+    if(patch.length() ==0||harness.length()==0)
     {
-      QString cableName = ui->comboBox_files->currentText();
-      QVariantList patch = getPatchData(cableName);
-      QVariantList harness = getHarnessData(cableName);
-      if(patch.length() ==0||harness.length()==0)
-      {
-          QMessageBox::information(this,"Data Missing","No Patch/Harness data found for this cable!");
-          return;
-      }
-      m_setNo       = ui->lineEdit_setNo->text();
-      m_performedBy = ui->lineEdit_performedBy->text();
-      m_inspectedBy = ui->lineEdit_inspectedBy->text();
-      m_projectName = ui->lineEdit_projectName->text();
-      m_testType    = ui->comboBox_test->currentText();
+        QMessageBox::information(this,"Data Missing","No Patch/Harness data found for this cable!");
+        return;
+    }
+    m_setNo       = ui->lineEdit_setNo->text();
+    m_performedBy = ui->lineEdit_performedBy->text();
+    m_inspectedBy = ui->lineEdit_inspectedBy->text();
+    m_projectName = ui->lineEdit_projectName->text();
+    m_testType    = ui->comboBox_test->currentText();
 
 
-      writeToNotes("=== TEST DATA RECEIVED FROM ");
-      writeToNotes("Cable     : " + cableName);
-      writeToNotes("Set No    : " + m_setNo);
-      writeToNotes("Performed : " + m_performedBy);
-      writeToNotes("Inspected : " + m_inspectedBy);
-      writeToNotes("Project   : " + m_projectName);
-      //writeToNotes("Notes     : " + notes);
-      writeToNotes("Test Type : " + m_testType);
+    writeToNotes("=== TEST DATA RECEIVED FROM ");
+    writeToNotes("Cable     : " + cableName);
+    writeToNotes("Set No    : " + m_setNo);
+    writeToNotes("Performed : " + m_performedBy);
+    writeToNotes("Inspected : " + m_inspectedBy);
+    writeToNotes("Project   : " + m_projectName);
+    //writeToNotes("Notes     : " + notes);
+    writeToNotes("Test Type : " + m_testType);
 
-      if (!test->mapLogicalToHardware(patch, harness)) {
-          QMessageBox::information(this,"Mapping Failed","Patch to Harness mapping failed.");
-          return;
-      }
+    if (!test->mapLogicalToHardware(patch, harness)) {
+        QMessageBox::information(this,"Mapping Failed","Patch to Harness mapping failed.");
+        return;
+    }
 
 
-      // Two Wire BLOCK Start------------------------
+    // Two Wire BLOCK Start------------------------
 
-      if(ui->comboBox_test->currentText() == "Two Wire Continuity")
-      {
+    if(ui->comboBox_test->currentText() == "Two Wire Continuity")
+    {
         writeToNotes("Starting Two Wire Continuity");
 
         QVector<QByteArray> packets =
@@ -1792,359 +1837,360 @@ void MainWindow::on_pushButton_run_clicked()
         test->startTwoWireTransmission(startPacket,
                                        packets);
 
-      }
-
-      // Two Wire BLOCK End------------------------
-
-
-      // Insulation Packet logic start ------------------------------------------------
-
-      if(ui->comboBox_test->currentText() == "Insulation")
-      {
-          writeToNotes("======================================");
-          writeToNotes("STEP-1 : DIVIDING HARNESS INTO LOOMS");
-          writeToNotes("======================================");
-
-          QMap<QString, QVector<HarnessConnection>> looms;
-
-          QVector<QString> cable     = test->get_Cable();
-          QVector<QString> sourceCon = test->get_k_SourceCon();
-          QVector<QString> sourcePin = test->get_k_SourcePin();
-          QVector<QString> destCon   = test->get_k_DestinationCon();
-          QVector<QString> destPin   = test->get_k_DestinationPin();
-          QVector<QString> exp       = test->get_expResistance();
-
-          for(int i = 0; i < cable.size(); ++i)
-          {
-              HarnessConnection row;
-
-              row.cable     = cable[i];
-              row.sourceCon = sourceCon[i];
-              row.sourcePin = sourcePin[i];
-              row.destCon   = destCon[i];
-              row.destPin   = destPin[i];
-              row.exp       = exp[i];
-
-              looms[cable[i]].append(row);
-          }
-
-          // Printing Looms
-          for(auto it = looms.begin(); it != looms.end(); ++it)
-          {
-              writeToNotes("");
-              writeToNotes(QString("******** %1 ********").arg(it.key()));
-
-              const QVector<HarnessConnection> &rows = it.value();
-
-              for(const HarnessConnection &r : rows)
-              {
-                  writeToNotes(QString("%1 : %2  --->  %3 : %4")
-                               .arg(r.sourceCon)
-                               .arg(r.sourcePin)
-                               .arg(r.destCon)
-                               .arg(r.destPin));
-              }
-          }
-
-          writeToNotes("");
-          writeToNotes(QString("Total Looms : %1").arg(looms.size()));
-
-          // Final storer
-          QVector<QByteArray> loomPackets;
-
-          //Loom wise net creation
-
-          quint16 loomNumber = 0;
-
-          for(auto it = looms.begin(); it != looms.end(); ++it)
-          {
-              writeToNotes("");
-              writeToNotes(QString("========================================"));
-              writeToNotes(QString("PROCESSING LOOM : %1").arg(it.key()));
-              writeToNotes(QString("========================================"));
-
-              const QVector<HarnessConnection> &rows = it.value();
-
-              // ---------------------------------------------------
-              // STEP-2 : Create endpoint pairs (same as old net logic)
-              // ---------------------------------------------------
-
-              QVector<QPair<QPair<QString,int>,QPair<QString,int>>> pairs;
-
-              for(const HarnessConnection &r : rows)
-              {
-                  pairs.append(
-                      qMakePair(
-                          qMakePair(r.sourceCon, r.sourcePin.toInt()),
-                          qMakePair(r.destCon,   r.destPin.toInt())
-                      )
-                  );
-              }
-
-              // ---------------------------------------------------
-              // STEP-3 : Merge into Nets (same algorithm as before)
-              // ---------------------------------------------------
-
-              QVector<QVector<QPair<QString,int>>> fixedGroups;
-
-              for(int i=0;i<pairs.size();++i)
-              {
-                  QPair<QString,int> first  = pairs[i].first;
-                  QPair<QString,int> second = pairs[i].second;
-
-                  QVector<int> groupIndices;
-
-                  for(int j=0;j<fixedGroups.size();++j)
-                  {
-                      if(fixedGroups[j].contains(first) ||
-                         fixedGroups[j].contains(second))
-                      {
-                          groupIndices.append(j);
-                      }
-                  }
-
-                  if(groupIndices.isEmpty())
-                  {
-                      QVector<QPair<QString,int>> newGroup;
-                      newGroup.append(first);
-                      newGroup.append(second);
-
-                      fixedGroups.append(newGroup);
-                  }
-                  else
-                  {
-                      int mainIndex = groupIndices[0];
-
-                      for(int k=1;k<groupIndices.size();++k)
-                      {
-                          int mergeIndex = groupIndices[k];
-
-                          fixedGroups[mainIndex] += fixedGroups[mergeIndex];
-                          fixedGroups[mergeIndex].clear();
-                      }
-
-                      if(!fixedGroups[mainIndex].contains(first))
-                          fixedGroups[mainIndex].append(first);
-
-                      if(!fixedGroups[mainIndex].contains(second))
-                          fixedGroups[mainIndex].append(second);
-                  }
-              }
-
-              // Remove merged empty groups
-              fixedGroups.erase(
-                          std::remove_if(
-                              fixedGroups.begin(),
-                              fixedGroups.end(),
-                              [](const QVector<QPair<QString,int>> &g)
-                              {
-                                  return g.isEmpty();
-                              }),
-                          fixedGroups.end());
-
-              // ---------------------------------------------------
-              // STEP-4 : Print Nets
-              // ---------------------------------------------------
-
-              writeToNotes(QString("TOTAL NETS : %1").arg(fixedGroups.size()));
-
-              for(int net=0; net<fixedGroups.size(); ++net)
-              {
-                  writeToNotes("");
-                  writeToNotes(QString("NET-%1").arg(net));
-
-                  for(const auto &point : fixedGroups[net])
-                  {
-                      writeToNotes(
-                                  QString("   %1 : %2")
-                                  .arg(point.first)
-                                  .arg(point.second));
-                  }
-              }
-
-              // ---------------------------------------------------
-              // STEP-4 : Print Packet Structure
-              // ---------------------------------------------------
-
-              int connectorDataLength = 2;    // uint16 No Of Nets
-
-              writeToNotes("");
-              writeToNotes(QString("LOOM : %1").arg(it.key()));
-              writeToNotes(QString("TOTAL NETS : %1").arg(fixedGroups.size()));
-
-              // Calculate Connector Data Length
-              for(int net = 0; net < fixedGroups.size(); ++net)
-              {
-                  int netDataLength = fixedGroups[net].size() * 2; // connector + pin
-
-                  connectorDataLength +=
-                          2 +                 // Net No
-                          2 +                 // Net Data Length
-                          netDataLength;      // Net Data
-              }
-
-              writeToNotes(QString("Connector Data Length : %1 Bytes")
-                           .arg(connectorDataLength));
-
-              writeToNotes(QString("Number Of Nets : %1")
-                           .arg(fixedGroups.size()));
-
-              writeToNotes("");
-
-              for(int net = 0; net < fixedGroups.size(); ++net)
-              {
-                  int netDataLength = fixedGroups[net].size() * 2;
-
-                  writeToNotes(QString("------------ NET %1 ------------").arg(net));
-                  writeToNotes(QString("Net Number      : %1").arg(net));
-                  writeToNotes(QString("Net Data Length : %1 Bytes").arg(netDataLength));
-
-                  for(const auto &point : fixedGroups[net])
-                  {
-                      writeToNotes(QString("   %1 : %2")
-                                   .arg(point.first)
-                                   .arg(point.second));
-                  }
-
-                  writeToNotes("");
-              }
-
-              //Loom packets storage start -----------------------------------
-              QByteArray loomPacket;
-
-              auto appendUInt16 = [&](quint16 value)
-              {
-                  // MSB first (same as your previous protocol)
-                  loomPacket.append(char((value >> 8) & 0xFF));
-                  loomPacket.append(char(value & 0xFF));
-              };
-
-              appendUInt16(loomNumber);
-              appendUInt16(connectorDataLength);
-              appendUInt16(fixedGroups.size());
-
-              for(int net = 0; net < fixedGroups.size(); ++net)
-              {
-                  int netDataLength = fixedGroups[net].size() * 2;
-
-                  appendUInt16(net);
-
-                  appendUInt16(netDataLength);
-
-                  for(const auto &point : fixedGroups[net])
-                  {
-                      QString connector = point.first;
-
-                      // TP-1 -> 1
-                      // TP-12 -> 12
-
-                      quint8 connectorNo =
-                              connector.mid(3).toUInt();
-
-                      quint8 pin =
-                              static_cast<quint8>(point.second);
-
-                      loomPacket.append(char(connectorNo));
-                      loomPacket.append(char(pin));
-                  }
-              }
-
-              loomPackets.append(loomPacket);
-
-              writeToNotes(QString("Serialized Loom %1 : %2 bytes")
-                           .arg(loomNumber)
-                           .arg(loomPacket.size()));
-
-              writeToNotes(loomPacket.toHex(' '));
-
-              loomNumber++;
-
-              //Loom packets storage end -----------------------------------
-          }
-
-          //UART Packet Creation of 1024 starts ------------------------
-
-          writeToNotes("");
-          writeToNotes("======================================");
-          writeToNotes("STEP-5 : BUILDING UART PACKETS");
-          writeToNotes("======================================");
-
-          QVector<QByteArray> uartPackets;
-
-          QByteArray currentPacket;
-
-          quint16 packetNumber = 0;
-
-          auto appendUInt16Packet = [&](QByteArray &packet, quint16 value)
-          {
-              packet.append(char((value >> 8) & 0xFF));
-              packet.append(char(value & 0xFF));
-          };
-
-          currentPacket.append(char(0x2F));
-          currentPacket.append(char(0x2F));
-
-          appendUInt16Packet(currentPacket, packetNumber);
-
-          // Placeholder for Packet Length
-          appendUInt16Packet(currentPacket, 0);
-
-          const int MAX_PACKET_SIZE = 1024;
-
-          for(const QByteArray &loom : loomPackets)
-          {
-              if(currentPacket.size() + loom.size() > MAX_PACKET_SIZE)
-              {
-                  quint16 packetLength = currentPacket.size() - 6;
-
-                  currentPacket[4] = char((packetLength >> 8) & 0xFF);
-                  currentPacket[5] = char(packetLength & 0xFF);
-
-                  uartPackets.append(currentPacket);
-
-                  packetNumber++;
-
-                  currentPacket.clear();
-
-                  currentPacket.append(char(0x2F));
-                  currentPacket.append(char(0x2F));
-
-                  appendUInt16Packet(currentPacket, packetNumber);
-
-                  appendUInt16Packet(currentPacket, 0);
-              }
-
-              currentPacket.append(loom);
-          }
-
-          if(currentPacket.size() > 6)
-          {
-              quint16 packetLength = currentPacket.size() - 6;
-
-              currentPacket[4] = char((packetLength >> 8) & 0xFF);
-              currentPacket[5] = char(packetLength & 0xFF);
-
-              uartPackets.append(currentPacket);
-          }
-
-          writeToNotes("");
-
-          for(int i = 0; i < uartPackets.size(); i++)
-          {
-              writeToNotes(QString("--------------------------------"));
-              writeToNotes(QString("UART Packet %1").arg(i));
-              writeToNotes(QString("Size : %1 Bytes").arg(uartPackets[i].size()));
-              writeToNotes(uartPackets[i].toHex(' '));
-          }
-
-          //UART Packet Creation of 1024 ends --------------------------
-
-
-      }
-
-      // Insulation Packet logic end ------------------------------------------------
+        //Move to two wire test page
+        ui->stackedWidget->setCurrentWidget(ui->page_twoWireTest);
 
     }
+
+    // Two Wire BLOCK End------------------------
+
+
+    // Insulation Packet logic start ------------------------------------------------
+
+    if(ui->comboBox_test->currentText() == "Insulation")
+    {
+        writeToNotes("======================================");
+        writeToNotes("STEP-1 : DIVIDING HARNESS INTO LOOMS");
+        writeToNotes("======================================");
+
+        QMap<QString, QVector<HarnessConnection>> looms;
+
+        QVector<QString> cable     = test->get_Cable();
+        QVector<QString> sourceCon = test->get_k_SourceCon();
+        QVector<QString> sourcePin = test->get_k_SourcePin();
+        QVector<QString> destCon   = test->get_k_DestinationCon();
+        QVector<QString> destPin   = test->get_k_DestinationPin();
+        QVector<QString> exp       = test->get_expResistance();
+
+        for(int i = 0; i < cable.size(); ++i)
+        {
+            HarnessConnection row;
+
+            row.cable     = cable[i];
+            row.sourceCon = sourceCon[i];
+            row.sourcePin = sourcePin[i];
+            row.destCon   = destCon[i];
+            row.destPin   = destPin[i];
+            row.exp       = exp[i];
+
+            looms[cable[i]].append(row);
+        }
+
+        // Printing Looms
+        for(auto it = looms.begin(); it != looms.end(); ++it)
+        {
+            writeToNotes("");
+            writeToNotes(QString("******** %1 ********").arg(it.key()));
+
+            const QVector<HarnessConnection> &rows = it.value();
+
+            for(const HarnessConnection &r : rows)
+            {
+                writeToNotes(QString("%1 : %2  --->  %3 : %4")
+                             .arg(r.sourceCon)
+                             .arg(r.sourcePin)
+                             .arg(r.destCon)
+                             .arg(r.destPin));
+            }
+        }
+
+        writeToNotes("");
+        writeToNotes(QString("Total Looms : %1").arg(looms.size()));
+
+        // Final storer
+        QVector<QByteArray> loomPackets;
+
+        //Loom wise net creation
+
+        quint16 loomNumber = 0;
+
+        for(auto it = looms.begin(); it != looms.end(); ++it)
+        {
+            writeToNotes("");
+            writeToNotes(QString("========================================"));
+            writeToNotes(QString("PROCESSING LOOM : %1").arg(it.key()));
+            writeToNotes(QString("========================================"));
+
+            const QVector<HarnessConnection> &rows = it.value();
+
+            // ---------------------------------------------------
+            // STEP-2 : Create endpoint pairs (same as old net logic)
+            // ---------------------------------------------------
+
+            QVector<QPair<QPair<QString,int>,QPair<QString,int>>> pairs;
+
+            for(const HarnessConnection &r : rows)
+            {
+                pairs.append(
+                            qMakePair(
+                                qMakePair(r.sourceCon, r.sourcePin.toInt()),
+                                qMakePair(r.destCon,   r.destPin.toInt())
+                                )
+                            );
+            }
+
+            // ---------------------------------------------------
+            // STEP-3 : Merge into Nets (same algorithm as before)
+            // ---------------------------------------------------
+
+            QVector<QVector<QPair<QString,int>>> fixedGroups;
+
+            for(int i=0;i<pairs.size();++i)
+            {
+                QPair<QString,int> first  = pairs[i].first;
+                QPair<QString,int> second = pairs[i].second;
+
+                QVector<int> groupIndices;
+
+                for(int j=0;j<fixedGroups.size();++j)
+                {
+                    if(fixedGroups[j].contains(first) ||
+                            fixedGroups[j].contains(second))
+                    {
+                        groupIndices.append(j);
+                    }
+                }
+
+                if(groupIndices.isEmpty())
+                {
+                    QVector<QPair<QString,int>> newGroup;
+                    newGroup.append(first);
+                    newGroup.append(second);
+
+                    fixedGroups.append(newGroup);
+                }
+                else
+                {
+                    int mainIndex = groupIndices[0];
+
+                    for(int k=1;k<groupIndices.size();++k)
+                    {
+                        int mergeIndex = groupIndices[k];
+
+                        fixedGroups[mainIndex] += fixedGroups[mergeIndex];
+                        fixedGroups[mergeIndex].clear();
+                    }
+
+                    if(!fixedGroups[mainIndex].contains(first))
+                        fixedGroups[mainIndex].append(first);
+
+                    if(!fixedGroups[mainIndex].contains(second))
+                        fixedGroups[mainIndex].append(second);
+                }
+            }
+
+            // Remove merged empty groups
+            fixedGroups.erase(
+                        std::remove_if(
+                            fixedGroups.begin(),
+                            fixedGroups.end(),
+                            [](const QVector<QPair<QString,int>> &g)
+            {
+                return g.isEmpty();
+            }),
+                        fixedGroups.end());
+
+            // ---------------------------------------------------
+            // STEP-4 : Print Nets
+            // ---------------------------------------------------
+
+            writeToNotes(QString("TOTAL NETS : %1").arg(fixedGroups.size()));
+
+            for(int net=0; net<fixedGroups.size(); ++net)
+            {
+                writeToNotes("");
+                writeToNotes(QString("NET-%1").arg(net));
+
+                for(const auto &point : fixedGroups[net])
+                {
+                    writeToNotes(
+                                QString("   %1 : %2")
+                                .arg(point.first)
+                                .arg(point.second));
+                }
+            }
+
+            // ---------------------------------------------------
+            // STEP-4 : Print Packet Structure
+            // ---------------------------------------------------
+
+            int connectorDataLength = 2;    // uint16 No Of Nets
+
+            writeToNotes("");
+            writeToNotes(QString("LOOM : %1").arg(it.key()));
+            writeToNotes(QString("TOTAL NETS : %1").arg(fixedGroups.size()));
+
+            // Calculate Connector Data Length
+            for(int net = 0; net < fixedGroups.size(); ++net)
+            {
+                int netDataLength = fixedGroups[net].size() * 2; // connector + pin
+
+                connectorDataLength +=
+                        2 +                 // Net No
+                        2 +                 // Net Data Length
+                        netDataLength;      // Net Data
+            }
+
+            writeToNotes(QString("Connector Data Length : %1 Bytes")
+                         .arg(connectorDataLength));
+
+            writeToNotes(QString("Number Of Nets : %1")
+                         .arg(fixedGroups.size()));
+
+            writeToNotes("");
+
+            for(int net = 0; net < fixedGroups.size(); ++net)
+            {
+                int netDataLength = fixedGroups[net].size() * 2;
+
+                writeToNotes(QString("------------ NET %1 ------------").arg(net));
+                writeToNotes(QString("Net Number      : %1").arg(net));
+                writeToNotes(QString("Net Data Length : %1 Bytes").arg(netDataLength));
+
+                for(const auto &point : fixedGroups[net])
+                {
+                    writeToNotes(QString("   %1 : %2")
+                                 .arg(point.first)
+                                 .arg(point.second));
+                }
+
+                writeToNotes("");
+            }
+
+            //Loom packets storage start -----------------------------------
+            QByteArray loomPacket;
+
+            auto appendUInt16 = [&](quint16 value)
+            {
+                // MSB first (same as your previous protocol)
+                loomPacket.append(char((value >> 8) & 0xFF));
+                loomPacket.append(char(value & 0xFF));
+            };
+
+            appendUInt16(loomNumber);
+            appendUInt16(connectorDataLength);
+            appendUInt16(fixedGroups.size());
+
+            for(int net = 0; net < fixedGroups.size(); ++net)
+            {
+                int netDataLength = fixedGroups[net].size() * 2;
+
+                appendUInt16(net);
+
+                appendUInt16(netDataLength);
+
+                for(const auto &point : fixedGroups[net])
+                {
+                    QString connector = point.first;
+
+                    // TP-1 -> 1
+                    // TP-12 -> 12
+
+                    quint8 connectorNo =
+                            connector.mid(3).toUInt();
+
+                    quint8 pin =
+                            static_cast<quint8>(point.second);
+
+                    loomPacket.append(char(connectorNo));
+                    loomPacket.append(char(pin));
+                }
+            }
+
+            loomPackets.append(loomPacket);
+
+            writeToNotes(QString("Serialized Loom %1 : %2 bytes")
+                         .arg(loomNumber)
+                         .arg(loomPacket.size()));
+
+            writeToNotes(loomPacket.toHex(' '));
+
+            loomNumber++;
+
+            //Loom packets storage end -----------------------------------
+        }
+
+        //UART Packet Creation of 1024 starts ------------------------
+
+        writeToNotes("");
+        writeToNotes("======================================");
+        writeToNotes("STEP-5 : BUILDING UART PACKETS");
+        writeToNotes("======================================");
+
+        QVector<QByteArray> uartPackets;
+
+        QByteArray currentPacket;
+
+        quint16 packetNumber = 0;
+
+        auto appendUInt16Packet = [&](QByteArray &packet, quint16 value)
+        {
+            packet.append(char((value >> 8) & 0xFF));
+            packet.append(char(value & 0xFF));
+        };
+
+        currentPacket.append(char(0x2F));
+        currentPacket.append(char(0x2F));
+
+        appendUInt16Packet(currentPacket, packetNumber);
+
+        // Placeholder for Packet Length
+        appendUInt16Packet(currentPacket, 0);
+
+        const int MAX_PACKET_SIZE = 1024;
+
+        for(const QByteArray &loom : loomPackets)
+        {
+            if(currentPacket.size() + loom.size() > MAX_PACKET_SIZE)
+            {
+                quint16 packetLength = currentPacket.size() - 6;
+
+                currentPacket[4] = char((packetLength >> 8) & 0xFF);
+                currentPacket[5] = char(packetLength & 0xFF);
+
+                uartPackets.append(currentPacket);
+
+                packetNumber++;
+
+                currentPacket.clear();
+
+                currentPacket.append(char(0x2F));
+                currentPacket.append(char(0x2F));
+
+                appendUInt16Packet(currentPacket, packetNumber);
+
+                appendUInt16Packet(currentPacket, 0);
+            }
+
+            currentPacket.append(loom);
+        }
+
+        if(currentPacket.size() > 6)
+        {
+            quint16 packetLength = currentPacket.size() - 6;
+
+            currentPacket[4] = char((packetLength >> 8) & 0xFF);
+            currentPacket[5] = char(packetLength & 0xFF);
+
+            uartPackets.append(currentPacket);
+        }
+
+        writeToNotes("");
+
+        for(int i = 0; i < uartPackets.size(); i++)
+        {
+            writeToNotes(QString("--------------------------------"));
+            writeToNotes(QString("UART Packet %1").arg(i));
+            writeToNotes(QString("Size : %1 Bytes").arg(uartPackets[i].size()));
+            writeToNotes(uartPackets[i].toHex(' '));
+        }
+
+        //UART Packet Creation of 1024 ends --------------------------
+
+
+    }
+
+    // Insulation Packet logic end ------------------------------------------------
 }
 
 QVariantList MainWindow::getPatchData(const QString &cableName)
@@ -2202,8 +2248,8 @@ QVariantList MainWindow::getHarnessData(const QString &cableName)
     }
 
     QString sql =
-        "SELECT cable, sourceCon, sourcePin, destCon, destPin, exp "
-        "FROM " + tableName;
+            "SELECT cable, sourceCon, sourcePin, destCon, destPin, exp "
+            "FROM " + tableName;
 
     QSqlQuery q(db);
     if (!q.exec(sql)) {
@@ -2224,8 +2270,8 @@ QVariantList MainWindow::getHarnessData(const QString &cableName)
     }
 
     writeToNotes(QString("getHarnessData: %1 rows for %2")
-                     .arg(rows.size())
-                     .arg(cableName));
+                 .arg(rows.size())
+                 .arg(cableName));
 
     return rows;
 }
@@ -2239,10 +2285,10 @@ void MainWindow::on_pushButton_back_clicked()
 void MainWindow::on_pushButton_addRow_clicked()
 {
     ui->tableView_patch->setEditTriggers(
-            QAbstractItemView::DoubleClicked |
-            QAbstractItemView::SelectedClicked |
-            QAbstractItemView::EditKeyPressed
-    );
+                QAbstractItemView::DoubleClicked |
+                QAbstractItemView::SelectedClicked |
+                QAbstractItemView::EditKeyPressed
+                );
 
     int row = patchModel->rowCount();
 
@@ -2279,10 +2325,10 @@ void MainWindow::on_pushButton_delRow_clicked()
 void MainWindow::on_pushButton_addHarnessRow_clicked()
 {
     ui->tableView_harness->setEditTriggers(
-            QAbstractItemView::DoubleClicked |
-            QAbstractItemView::SelectedClicked |
-            QAbstractItemView::EditKeyPressed
-    );
+                QAbstractItemView::DoubleClicked |
+                QAbstractItemView::SelectedClicked |
+                QAbstractItemView::EditKeyPressed
+                );
 
     int row = harnessModel->rowCount();
 
