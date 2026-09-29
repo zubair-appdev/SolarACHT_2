@@ -53,6 +53,13 @@ public:
     void startTwoWireTransmission(const QByteArray &startPacket,
                                      const QVector<QByteArray> &packets);
 
+    inline QVector<float> getTwoWireResults() const
+    {
+        return m_twoWireResults;
+    }
+
+    void setTwoWireExpectedResults(int count);
+
 private slots:
     void onReadyRead();
 
@@ -60,6 +67,10 @@ signals:
     void infor();
     void portOpening(const QString &);
     void executeWriteToNotes(const QString &dataNotes);
+
+     void twoWireResultReceived(float value, int index);
+
+     void twoWireResultsCompleted();
 
 private:
     QSerialPort *serial;
@@ -88,6 +99,10 @@ private:
     bool m_waitingForStartAck = false;
     bool m_waitingForPacketAck = false;
 
+    QVector<float> m_twoWireResults;
+    bool m_receivingTwoWireResults = false;
+
+     int m_twoWireExpectedResults = 0;
 };
 
 #endif // TESTCONTROLLER_H

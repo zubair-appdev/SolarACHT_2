@@ -9,8 +9,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>849</width>
-    <height>518</height>
+    <width>830</width>
+    <height>553</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -53,7 +53,7 @@
     gridline-color: #d9d9d9;</string>
       </property>
       <property name="currentIndex">
-       <number>13</number>
+       <number>12</number>
       </property>
       <widget class="QWidget" name="page">
        <layout class="QGridLayout" name="gridLayout_2">
@@ -4312,30 +4312,21 @@ QPushButton:pressed
            <string/>
           </property>
           <layout class="QGridLayout" name="gridLayout_16">
-           <item row="0" column="0">
-            <widget class="QLabel" name="label_9">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
+           <item row="2" column="0">
+            <widget class="QComboBox" name="comboBox_files">
              <property name="font">
               <font>
                <pointsize>12</pointsize>
-               <weight>75</weight>
-               <bold>true</bold>
               </font>
              </property>
              <property name="styleSheet">
-              <string notr="true">border:none;</string>
+              <string notr="true"/>
              </property>
-             <property name="text">
-              <string>Test Mode</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignCenter</set>
-             </property>
+             <item>
+              <property name="text">
+               <string>Files</string>
+              </property>
+             </item>
             </widget>
            </item>
            <item row="1" column="0">
@@ -4388,21 +4379,30 @@ QPushButton:pressed
              </item>
             </layout>
            </item>
-           <item row="2" column="0">
-            <widget class="QComboBox" name="comboBox_files">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_9">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
              <property name="font">
               <font>
                <pointsize>12</pointsize>
+               <weight>75</weight>
+               <bold>true</bold>
               </font>
              </property>
              <property name="styleSheet">
-              <string notr="true"/>
+              <string notr="true">border:none;</string>
              </property>
-             <item>
-              <property name="text">
-               <string>Files</string>
-              </property>
-             </item>
+             <property name="text">
+              <string>Test Mode</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
+             </property>
             </widget>
            </item>
            <item row="3" column="0">
@@ -4411,6 +4411,9 @@ QPushButton:pressed
               <font>
                <pointsize>12</pointsize>
               </font>
+             </property>
+             <property name="text">
+              <string>1</string>
              </property>
              <property name="placeholderText">
               <string>Enter set number</string>
@@ -4426,6 +4429,9 @@ QPushButton:pressed
                  <pointsize>12</pointsize>
                 </font>
                </property>
+               <property name="text">
+                <string>1</string>
+               </property>
                <property name="placeholderText">
                 <string>Performed By</string>
                </property>
@@ -4437,6 +4443,9 @@ QPushButton:pressed
                 <font>
                  <pointsize>12</pointsize>
                 </font>
+               </property>
+               <property name="text">
+                <string>1</string>
                </property>
                <property name="placeholderText">
                 <string>Inspected By</string>
@@ -4454,6 +4463,9 @@ QPushButton:pressed
                  <pointsize>12</pointsize>
                 </font>
                </property>
+               <property name="text">
+                <string>1</string>
+               </property>
                <property name="placeholderText">
                 <string>Project Name</string>
                </property>
@@ -4466,111 +4478,15 @@ QPushButton:pressed
                  <pointsize>12</pointsize>
                 </font>
                </property>
+               <property name="text">
+                <string>1</string>
+               </property>
                <property name="placeholderText">
                 <string>Notes</string>
                </property>
               </widget>
              </item>
             </layout>
-           </item>
-           <item row="6" column="0">
-            <layout class="QHBoxLayout" name="horizontalLayout_13">
-             <item>
-              <widget class="QComboBox" name="comboBox_test">
-               <property name="font">
-                <font>
-                 <pointsize>12</pointsize>
-                </font>
-               </property>
-               <item>
-                <property name="text">
-                 <string>Test</string>
-                </property>
-               </item>
-               <item>
-                <property name="text">
-                 <string>Two Wire Continuity</string>
-                </property>
-               </item>
-               <item>
-                <property name="text">
-                 <string>Isolation</string>
-                </property>
-               </item>
-               <item>
-                <property name="text">
-                 <string>Insulation</string>
-                </property>
-               </item>
-              </widget>
-             </item>
-             <item>
-              <widget class="QDoubleSpinBox" name="doubleSpinBox_voltage">
-               <property name="font">
-                <font>
-                 <pointsize>10</pointsize>
-                </font>
-               </property>
-               <property name="toolTip">
-                <string>Range : 0 - 1000V</string>
-               </property>
-               <property name="suffix">
-                <string> A</string>
-               </property>
-               <property name="maximum">
-                <double>1000.000000000000000</double>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item row="7" column="0">
-            <widget class="QPushButton" name="pushButton_run">
-             <property name="font">
-              <font>
-               <pointsize>12</pointsize>
-              </font>
-             </property>
-             <property name="styleSheet">
-              <string notr="true">QPushButton
-{
-    background: qlineargradient(
-        x1:0, y1:0,
-        x2:1, y2:0,
-        stop:0 #00c853,
-        stop:1 #2962ff
-    );
-
-    color: white;
-    border-radius: 10px;
-    padding: 8px;
-}
-QPushButton:hover
-{
-    background: qlineargradient(
-        x1:0, y1:0,
-        x2:1, y2:0,
-        stop:0 #00e676,
-        stop:1 #448aff
-    );
-}
-QPushButton:pressed
-{
-    background: qlineargradient(
-        x1:0, y1:0,
-        x2:1, y2:0,
-        stop:0 #00a152,
-        stop:1 #1e88e5
-    );
-
-    padding-top: 10px;
-    padding-left: 10px;
-}</string>
-             </property>
-             <property name="text">
-              <string>Run</string>
-             </property>
-            </widget>
            </item>
            <item row="8" column="0">
             <widget class="QPushButton" name="pushButton_back">
@@ -4626,6 +4542,114 @@ QPushButton:pressed
              </property>
             </widget>
            </item>
+           <item row="6" column="0">
+            <layout class="QHBoxLayout" name="horizontalLayout_13">
+             <item>
+              <widget class="QComboBox" name="comboBox_test">
+               <property name="font">
+                <font>
+                 <pointsize>12</pointsize>
+                </font>
+               </property>
+               <item>
+                <property name="text">
+                 <string>Test</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Two Wire Continuity</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Isolation</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Insulation</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+             <item>
+              <widget class="QDoubleSpinBox" name="doubleSpinBox_voltage">
+               <property name="font">
+                <font>
+                 <pointsize>10</pointsize>
+                </font>
+               </property>
+               <property name="toolTip">
+                <string>Range : 0 - 1000V</string>
+               </property>
+               <property name="suffix">
+                <string> A</string>
+               </property>
+               <property name="maximum">
+                <double>1000.000000000000000</double>
+               </property>
+               <property name="value">
+                <double>0.010000000000000</double>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item row="7" column="0">
+            <widget class="QPushButton" name="pushButton_run">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="font">
+              <font>
+               <pointsize>12</pointsize>
+              </font>
+             </property>
+             <property name="styleSheet">
+              <string notr="true">QPushButton
+{
+    background: qlineargradient(
+        x1:0, y1:0,
+        x2:1, y2:0,
+        stop:0 #00c853,
+        stop:1 #2962ff
+    );
+
+    color: white;
+    border-radius: 10px;
+    padding: 8px;
+}
+QPushButton:hover
+{
+    background: qlineargradient(
+        x1:0, y1:0,
+        x2:1, y2:0,
+        stop:0 #00e676,
+        stop:1 #448aff
+    );
+}
+QPushButton:pressed
+{
+    background: qlineargradient(
+        x1:0, y1:0,
+        x2:1, y2:0,
+        stop:0 #00a152,
+        stop:1 #1e88e5
+    );
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+             </property>
+             <property name="text">
+              <string>Run</string>
+             </property>
+            </widget>
+           </item>
           </layout>
          </widget>
         </item>
@@ -4666,9 +4690,107 @@ QPushButton:pressed
       <widget class="QWidget" name="page_twoWireTest">
        <layout class="QGridLayout" name="gridLayout_17">
         <item row="0" column="0">
-         <widget class="QTableView" name="tableView_twoWireTest"/>
+         <layout class="QHBoxLayout" name="horizontalLayout_15">
+          <item>
+           <widget class="QLabel" name="label_test">
+            <property name="font">
+             <font>
+              <pointsize>10</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>TextLabel</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_35">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Minimum</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
         </item>
         <item row="1" column="0">
+         <widget class="QTableView" name="tableView_twoWireTest">
+          <property name="styleSheet">
+           <string notr="true">QScrollBar:vertical
+{
+    background: #2C3E50;
+    width: 14px;
+    border-radius: 7px;
+}
+
+QScrollBar::handle:vertical
+{
+    background: #81D4FA;
+    border-radius: 7px;
+    min-height: 30px;
+}
+
+QScrollBar::handle:vertical:hover
+{
+    background: #B3E5FC;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical
+{
+    height: 0px;
+}
+
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical
+{
+    background: none;
+}
+
+QScrollBar:horizontal
+{
+    background: #2C3E50;
+    height: 14px;
+    border-radius: 7px;
+}
+
+QScrollBar::handle:horizontal
+{
+    background: #81D4FA;
+    border-radius: 7px;
+    min-width: 30px;
+}
+
+QScrollBar::handle:horizontal:hover
+{
+    background: #B3EFC;
+}
+
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal
+{
+    width: 0px;
+}
+
+QScrollBar::add-page:horizontal,
+QScrollBar::sub-page:horizontal
+{
+    background: none;
+}</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
          <widget class="QProgressBar" name="progressBar_twoWire">
           <property name="maximum">
            <number>100</number>
@@ -4687,7 +4809,7 @@ QPushButton:pressed
           </property>
          </widget>
         </item>
-        <item row="2" column="0">
+        <item row="3" column="0">
          <layout class="QHBoxLayout" name="horizontalLayout_14">
           <item>
            <widget class="QPushButton" name="pushButton_stopTwoWireTest">
@@ -4938,7 +5060,7 @@ QPushButton:disabled {
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>849</width>
+     <width>830</width>
      <height>21</height>
     </rect>
    </property>

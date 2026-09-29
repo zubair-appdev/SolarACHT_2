@@ -81,6 +81,60 @@ MainWindow::MainWindow(QWidget *parent)
     ui->tableView_patch->setSelectionMode(QAbstractItemView::SingleSelection);
     ui->stackedWidget->setCurrentIndex(0);
     ui->lineEdit_newPassword->setEchoMode(QLineEdit::Password);
+
+    // For Live Data Upload
+    connect(test,
+            &TestController::twoWireResultReceived,
+            this,
+            [this](float value, int index)
+    {
+        if (!m_twoWireTestModel)
+            return;
+
+        if (index < 0 ||
+            index >= m_twoWireTestModel->rowCount())
+            return;
+
+        // =====================================================
+        // 1. Update Measured value
+        // =====================================================
+
+        // Column 7 = Measured
+        m_twoWireTestModel->setData(
+            m_twoWireTestModel->index(index, 7),
+            QString::number(value, 'f', 3));
+
+        // =====================================================
+        // 2. Select current row
+        // =====================================================
+
+        ui->tableView_twoWireTest->selectRow(index);
+
+        // =====================================================
+        // 3. Scroll to current row
+        // =====================================================
+
+        ui->tableView_twoWireTest->scrollTo(
+            m_twoWireTestModel->index(index, 0),
+            QAbstractItemView::PositionAtBottom);
+
+        // =====================================================
+        // 4. Update progress bar
+        // =====================================================
+
+        int totalRows =
+                m_twoWireTestModel->rowCount();
+
+        ui->progressBar_twoWire->setMaximum(totalRows);
+        ui->progressBar_twoWire->setValue(index + 1);
+    });
+
+    // Two wire test completed vector
+    connect(test,
+            &TestController::twoWireResultsCompleted,
+            this,
+            &MainWindow::processTwoWireResults);
+
 }
 MainWindow::~MainWindow()
 {
@@ -897,7 +951,6 @@ bool MainWindow::processCsvFile(const QString &fileName,
         }
         else if (type == "harness")
         {
-            \
             if (parts.size() != 6)
             {
                 writeToNotes("❌ Malformed HARNESS line " + QString::number(lineNumber));
@@ -1078,29 +1131,43 @@ bool MainWindow::validateHarnessData(const QVector<QString> &cableTemp,
         return false;
     }
 
+    // =====================================================
     // Validate expValue
-    for (int i = 0; i < expTemp.size(); i++) {
-        QString v = expTemp[i];
+    //
+    // Comparison:
+    // <2
+    // >5
+    // <2K
+    // >5K
+    // <9M
+    // >9M
+    //
+    // Range:
+    // 20K ± 3
+    // 20K ± 3K
+    // 100 ± 5
+    // 9M ± 2M
+    //
+    // =====================================================
 
-        if ((!v.startsWith("<") && !v.startsWith(">")) ||
-                v.mid(1).toInt() < 1 || v.mid(1).toInt() > 100)
+    QRegularExpression expRegex(
+        R"(^(?:[<>][0-9]+[KM]?|[0-9]+[KM]?\s*±\s*[0-9]+[KM]?)$)",
+        QRegularExpression::CaseInsensitiveOption);
+
+    for (int i = 0; i < expTemp.size(); i++)
+    {
+        QString v = expTemp[i].trimmed();
+
+        if (!expRegex.match(v).hasMatch())
         {
-            writeToNotes(QString("Invalid expValue at index %1: %2")
-                         .arg(i).arg(v));
+            writeToNotes(
+                QString("Invalid expValue at index %1: %2")
+                    .arg(i)
+                    .arg(v));
+
             return false;
         }
     }
-
-    // Validate Voltage
-    //    for (int i = 0; i < voltTemp.size(); i++) {
-    //        QString v = voltTemp[i];
-
-    //        if (v != "250V" && v != "500V") {
-    //            writeToNotes(QString("❌ Invalid Voltage at index %1: %2")
-    //                             .arg(i).arg(v));
-    //            return false;
-    //        }
-    //    }
 
     // ---------------------------------------------------------
     // PRINT ALL HARNESS DATA AFTER SUCCESSFUL VALIDATION
@@ -1735,6 +1802,205 @@ QByteArray MainWindow::constructTwoWireStartPacket(quint16 totalPackets)
     return packet;
 }
 
+void MainWindow::populateTwoWireTestTable(
+        const QVariantList &harness)
+{
+    // =====================================================
+    // Create model if it doesn't exist
+    // =====================================================
+
+    if (!m_twoWireTestModel)
+    {
+        m_twoWireTestModel =
+                new QStandardItemModel(this);
+
+        ui->tableView_twoWireTest->setModel(
+                    m_twoWireTestModel);
+    }
+
+    // =====================================================
+    // Clear previous data
+    // =====================================================
+
+    m_twoWireTestModel->clear();
+
+    // =====================================================
+    // Set columns
+    // =====================================================
+
+    m_twoWireTestModel->setColumnCount(10);
+
+    m_twoWireTestModel->setHorizontalHeaderLabels({
+        "S.No",
+        "Cable",
+        "Source Connector",
+        "Source Pin",
+        "Destination Connector",
+        "Destination Pin",
+        "Expected",
+        "Measured",
+        "Result",
+        "Remarks"
+    });
+
+    // =====================================================
+    // Make header text bold
+    // =====================================================
+
+    QFont headerFont =
+            ui->tableView_twoWireTest->horizontalHeader()->font();
+
+    headerFont.setBold(true);
+
+    ui->tableView_twoWireTest->horizontalHeader()
+            ->setFont(headerFont);
+
+    // =====================================================
+    // Fill harness data
+    // =====================================================
+
+    for (int row = 0; row < harness.size(); ++row)
+    {
+        QVariantMap data =
+                harness[row].toMap();
+
+        // -------------------------------------------------
+        // S.No
+        // -------------------------------------------------
+
+        m_twoWireTestModel->setItem(
+                    row,
+                    0,
+                    new QStandardItem(
+                        QString::number(row + 1)));
+
+        // -------------------------------------------------
+        // Cable
+        // -------------------------------------------------
+
+        m_twoWireTestModel->setItem(
+                    row,
+                    1,
+                    new QStandardItem(
+                        data["cable"].toString()));
+
+        // -------------------------------------------------
+        // Source Connector
+        // -------------------------------------------------
+
+        m_twoWireTestModel->setItem(
+                    row,
+                    2,
+                    new QStandardItem(
+                        data["sourceCon"].toString()));
+
+        // -------------------------------------------------
+        // Source Pin
+        // -------------------------------------------------
+
+        m_twoWireTestModel->setItem(
+                    row,
+                    3,
+                    new QStandardItem(
+                        data["sourcePin"].toString()));
+
+        // -------------------------------------------------
+        // Destination Connector
+        // -------------------------------------------------
+
+        m_twoWireTestModel->setItem(
+                    row,
+                    4,
+                    new QStandardItem(
+                        data["destCon"].toString()));
+
+        // -------------------------------------------------
+        // Destination Pin
+        // -------------------------------------------------
+
+        m_twoWireTestModel->setItem(
+                    row,
+                    5,
+                    new QStandardItem(
+                        data["destPin"].toString()));
+
+        // -------------------------------------------------
+        // Expected
+        // -------------------------------------------------
+
+        QString expected =
+                formatTwoWireExpected(
+                    data["exp"].toString());
+
+        m_twoWireTestModel->setItem(
+                    row,
+                    6,
+                    new QStandardItem(expected));
+
+        // -------------------------------------------------
+        // Measured
+        // Initially empty
+        // -------------------------------------------------
+
+        m_twoWireTestModel->setItem(
+                    row,
+                    7,
+                    new QStandardItem(""));
+
+        // -------------------------------------------------
+        // Result
+        // Initially empty
+        // -------------------------------------------------
+
+        m_twoWireTestModel->setItem(
+                    row,
+                    8,
+                    new QStandardItem(""));
+
+        // -------------------------------------------------
+        // Remarks
+        // Initially empty
+        // -------------------------------------------------
+
+        m_twoWireTestModel->setItem(
+                    row,
+                    9,
+                    new QStandardItem(""));
+    }
+
+    // =====================================================
+    // Table behavior
+    // =====================================================
+
+    ui->tableView_twoWireTest->setSelectionBehavior(
+                QAbstractItemView::SelectRows);
+
+    ui->tableView_twoWireTest->setSelectionMode(
+                QAbstractItemView::SingleSelection);
+
+    ui->tableView_twoWireTest->setEditTriggers(
+                QAbstractItemView::NoEditTriggers);
+
+    ui->tableView_twoWireTest->setAlternatingRowColors(
+                true);
+
+    // =====================================================
+    // All columns:
+    // Equal width + stretch to entire table
+    // =====================================================
+
+    ui->tableView_twoWireTest->horizontalHeader()
+            ->setSectionResizeMode(
+                QHeaderView::Stretch);
+
+    // =====================================================
+    // Row height
+    // =====================================================
+
+    ui->tableView_twoWireTest->verticalHeader()
+            ->setDefaultSectionSize(28);
+}
+
 void MainWindow::portStatus(const QString &data)
 {
     if(data.startsWith("Serial object is not initialized/port not selected"))
@@ -1753,6 +2019,364 @@ void MainWindow::portStatus(const QString &data)
         QMessageBox::critical(this,"Error",data);
     }
 
+}
+
+void MainWindow::processTwoWireResults()
+{
+    if (!m_twoWireTestModel)
+        return;
+
+    // Get results from TestController
+    const QVector<float> &results =
+            test->getTwoWireResults();
+
+    int rowCount =
+            m_twoWireTestModel->rowCount();
+
+    int resultCount =
+            qMin(results.size(), rowCount);
+
+    for (int row = 0; row < resultCount; ++row)
+    {
+        float measuredOhms =
+                results[row];
+
+        // =============================================
+        // Convert measured value to readable format
+        // =============================================
+
+        QString measuredText;
+
+        if (qAbs(measuredOhms) >= 1000000000.0)
+        {
+            measuredText =
+                    QString::number(
+                        measuredOhms / 1000000000.0,
+                        'f',
+                        3)
+                    + "GΩ";
+        }
+        else if (qAbs(measuredOhms) >= 1000000.0)
+        {
+            measuredText =
+                    QString::number(
+                        measuredOhms / 1000000.0,
+                        'f',
+                        3)
+                    + "MΩ";
+        }
+        else if (qAbs(measuredOhms) >= 1000.0)
+        {
+            measuredText =
+                    QString::number(
+                        measuredOhms / 1000.0,
+                        'f',
+                        3)
+                    + "KΩ";
+        }
+        else
+        {
+            measuredText =
+                    QString::number(
+                        measuredOhms,
+                        'f',
+                        3)
+                    + "Ω";
+        }
+
+        // =============================================
+        // Update Measured column
+        // Column 7 = Measured
+        // =============================================
+
+        m_twoWireTestModel->setData(
+                    m_twoWireTestModel->index(row, 7),
+                    measuredText);
+
+        // =============================================
+        // Get Expected
+        // Column 6 = Expected
+        // =============================================
+
+        QString expected =
+                m_twoWireTestModel
+                ->index(row, 6)
+                .data()
+                .toString()
+                .trimmed();
+
+        // =============================================
+        // Compare
+        // =============================================
+
+        bool pass =
+                checkTwoWireExpected(
+                    measuredOhms,
+                    expected);
+
+        // =============================================
+        // Result
+        // Column 8 = Result
+        // =============================================
+
+        QString result =
+                pass ? "PASS" : "FAIL";
+
+        QModelIndex resultIndex =
+                m_twoWireTestModel->index(row, 8);
+
+        m_twoWireTestModel->setData(
+                    resultIndex,
+                    result);
+
+        // =============================================
+        // PASS / FAIL background
+        // =============================================
+
+        if (pass)
+        {
+            m_twoWireTestModel->setData(
+                        resultIndex,
+                        QBrush(Qt::green),
+                        Qt::BackgroundRole);
+        }
+        else
+        {
+            m_twoWireTestModel->setData(
+                        resultIndex,
+                        QBrush(Qt::red),
+                        Qt::BackgroundRole);
+        }
+
+        // =============================================
+        // Remarks
+        // Column 9 = Remarks
+        // =============================================
+
+        QString remarks;
+
+        if (pass)
+        {
+            remarks = "Within expected range";
+        }
+        else
+        {
+            remarks = "Measured value out of range";
+        }
+
+        m_twoWireTestModel->setData(
+                    m_twoWireTestModel->index(row, 9),
+                    remarks);
+    }
+
+    writeToNotes(
+        QString("Two Wire comparison completed. "
+                "Results: %1")
+        .arg(resultCount));
+}
+
+bool MainWindow::checkTwoWireExpected(
+        float measuredOhms,
+        const QString &expected)
+{
+    QString value =
+            expected.trimmed();
+
+    // =================================================
+    // < / > format
+    //
+    // <2Ω
+    // >10Ω
+    // <2KΩ
+    // >10MΩ
+    // >2GΩ
+    // =================================================
+
+    QRegularExpression comparisonRegex(
+        R"(^([<>])\s*([0-9]+(?:\.[0-9]+)?)\s*([KMG]?)Ω$)",
+        QRegularExpression::CaseInsensitiveOption);
+
+    QRegularExpressionMatch match =
+            comparisonRegex.match(value);
+
+    if (match.hasMatch())
+    {
+        QString operation =
+                match.captured(1);
+
+        double limit =
+                match.captured(2).toDouble();
+
+        QString unit =
+                match.captured(3).toUpper();
+
+        // ---------------------------------------------
+        // Convert expected value to Ohms
+        // ---------------------------------------------
+
+        if (unit == "K")
+            limit *= 1000.0;
+
+        else if (unit == "M")
+            limit *= 1000000.0;
+
+        else if (unit == "G")
+            limit *= 1000000000.0;
+
+        // ---------------------------------------------
+        // Compare
+        // ---------------------------------------------
+
+        if (operation == "<")
+            return measuredOhms < limit;
+
+        if (operation == ">")
+            return measuredOhms > limit;
+    }
+
+    // =================================================
+    // Range format
+    //
+    // 20KΩ ± 3Ω
+    // 20KΩ ± 3KΩ
+    // 100Ω ± 5Ω
+    // 9MΩ ± 2MΩ
+    // 2GΩ ± 500MΩ
+    // =================================================
+
+    QRegularExpression rangeRegex(
+        R"(^([0-9]+(?:\.[0-9]+)?)([KMG]?)Ω\s*±\s*([0-9]+(?:\.[0-9]+)?)([KMG]?)Ω$)",
+        QRegularExpression::CaseInsensitiveOption);
+
+    match = rangeRegex.match(value);
+
+    if (match.hasMatch())
+    {
+        double nominal =
+                match.captured(1).toDouble();
+
+        QString nominalUnit =
+                match.captured(2).toUpper();
+
+        double tolerance =
+                match.captured(3).toDouble();
+
+        QString toleranceUnit =
+                match.captured(4).toUpper();
+
+        // ---------------------------------------------
+        // Convert nominal to Ohms
+        // ---------------------------------------------
+
+        if (nominalUnit == "K")
+            nominal *= 1000.0;
+
+        else if (nominalUnit == "M")
+            nominal *= 1000000.0;
+
+        else if (nominalUnit == "G")
+            nominal *= 1000000000.0;
+
+        // ---------------------------------------------
+        // Convert tolerance to Ohms
+        // ---------------------------------------------
+
+        if (toleranceUnit == "K")
+            tolerance *= 1000.0;
+
+        else if (toleranceUnit == "M")
+            tolerance *= 1000000.0;
+
+        else if (toleranceUnit == "G")
+            tolerance *= 1000000000.0;
+
+        // ---------------------------------------------
+        // Calculate range
+        // ---------------------------------------------
+
+        double lowerLimit =
+                nominal - tolerance;
+
+        double upperLimit =
+                nominal + tolerance;
+
+        return measuredOhms >= lowerLimit &&
+               measuredOhms <= upperLimit;
+    }
+
+    // =================================================
+    // Invalid expected format
+    // =================================================
+
+    return false;
+}
+
+QString MainWindow::formatTwoWireExpected(
+        const QString &expected)
+{
+    QString value =
+            expected.trimmed();
+
+    // -------------------------------------------------
+    // Range format:
+    // 20K ± 3
+    // 20K ± 3K
+    // 9M ± 2M
+    // 2G ± 500M
+    // -------------------------------------------------
+
+    QRegularExpression rangeRegex(
+        R"(^([0-9]+(?:\.[0-9]+)?[KMG]?)\s*±\s*([0-9]+(?:\.[0-9]+)?[KMG]?)$)",
+        QRegularExpression::CaseInsensitiveOption);
+
+    QRegularExpressionMatch match =
+            rangeRegex.match(value);
+
+    if (match.hasMatch())
+    {
+        QString nominal =
+                match.captured(1);
+
+        QString tolerance =
+                match.captured(2);
+
+        return nominal + "Ω ± "
+                + tolerance + "Ω";
+    }
+
+    // -------------------------------------------------
+    // Comparison format:
+    // <2
+    // >5M
+    // <10K
+    // >2G
+    // -------------------------------------------------
+
+    QRegularExpression comparisonRegex(
+        R"(^([<>])\s*([0-9]+(?:\.[0-9]+)?[KMG]?)$)",
+        QRegularExpression::CaseInsensitiveOption);
+
+    match =
+            comparisonRegex.match(value);
+
+    if (match.hasMatch())
+    {
+        QString operation =
+                match.captured(1);
+
+        QString number =
+                match.captured(2);
+
+        return operation
+                + number
+                + "Ω";
+    }
+
+    // -------------------------------------------------
+    // Already formatted / unknown format
+    // -------------------------------------------------
+
+    return value;
 }
 
 void MainWindow::onPortSelected(const QString &portName)
@@ -1795,6 +2419,8 @@ void MainWindow::on_pushButton_run_clicked()
         QMessageBox::information(this,"Data Missing","No Patch/Harness data found for this cable!");
         return;
     }
+
+
     m_setNo       = ui->lineEdit_setNo->text();
     m_performedBy = ui->lineEdit_performedBy->text();
     m_inspectedBy = ui->lineEdit_inspectedBy->text();
@@ -1830,16 +2456,44 @@ void MainWindow::on_pushButton_run_clicked()
                     test->get_k_DestinationCon(),
                     test->get_k_DestinationPin());
 
-
         QByteArray startPacket =
                 constructTwoWireStartPacket(packets.size());
 
-        test->startTwoWireTransmission(startPacket,
-                                       packets);
+        // -----------------------------------------
+        // Populate result table FIRST
+        // -----------------------------------------
+        populateTwoWireTestTable(harness);
 
-        //Move to two wire test page
-        ui->stackedWidget->setCurrentWidget(ui->page_twoWireTest);
+        // -----------------------------------------
+        // Get expected result count
+        // -----------------------------------------
+        expectedResults =
+                m_twoWireTestModel->rowCount();
 
+        // -----------------------------------------
+        // Give count to TestController
+        // -----------------------------------------
+        test->setTwoWireExpectedResults(
+            expectedResults);
+
+        // -----------------------------------------
+        // NOW start transmission
+        // -----------------------------------------
+        test->startTwoWireTransmission(
+            startPacket,
+            packets);
+
+        // Reset progress bar
+        ui->progressBar_twoWire->setValue(0);
+        ui->progressBar_twoWire->setMaximum(
+            m_twoWireTestModel->rowCount());
+
+        // Move to two wire test page
+        ui->stackedWidget->setCurrentWidget(
+            ui->page_twoWireTest);
+
+        ui->label_test->setText(
+            "Two Wire Continuity Test");
     }
 
     // Two Wire BLOCK End------------------------
@@ -2361,4 +3015,10 @@ void MainWindow::on_pushButton_delHarnessRow_clicked()
     {
         QMessageBox::warning(this,"Error",harnessModel->lastError().text());
     }
+}
+
+
+void MainWindow::on_pushButton_backFromTwoWireTest_clicked()
+{
+    ui->stackedWidget->setCurrentWidget(ui->page_test);
 }

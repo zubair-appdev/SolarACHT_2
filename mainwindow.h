@@ -88,6 +88,8 @@ public:
          QString exp;
      };
 
+     void populateTwoWireTestTable(const QVariantList &harness);
+
 
 private slots:
      void on_pushButton_Save_clicked();
@@ -203,9 +205,20 @@ private slots:
 
       void on_pushButton_delHarnessRow_clicked();
 
+      void on_pushButton_backFromTwoWireTest_clicked();
+
 public slots:
 
       void portStatus(const QString &data);
+
+      void processTwoWireResults();
+
+      bool checkTwoWireExpected(
+              float measuredOhms,
+              const QString &expected);
+
+      QString formatTwoWireExpected(
+              const QString &expected);
 
 private:
     Ui::MainWindow *ui;
@@ -233,6 +246,9 @@ private:
     TestController *test;
     bool simulate;
 
+    QStandardItemModel *m_twoWireTestModel = nullptr;
+
+    int expectedResults = 0;
 
 };
 

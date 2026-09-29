@@ -216,7 +216,10 @@ void TestController::startTwoWireTransmission(
     }
 
     // Reset previous transmission state
-        buffer.clear();
+    buffer.clear();
+
+    m_twoWireResults.clear();
+    m_receivingTwoWireResults = false;
 
     m_packets = packets;
     m_startPacket = startPacket;
@@ -234,34 +237,124 @@ void TestController::startTwoWireTransmission(
     qDebug() << "Start Packet Sent";
 }
 
+void TestController::setTwoWireExpectedResults(int count)
+{
+    m_twoWireExpectedResults = count;
+
+    qDebug() << "Expected Two Wire Results:"
+             << m_twoWireExpectedResults;
+}
+
 void TestController::onReadyRead()
 {
     buffer.append(serial->readAll());
 
-    qDebug()<<buffer.toHex(' ').toUpper();
+    qDebug() << "RX BUFFER:"
+             << buffer.toHex(' ').toUpper();
 
     const QByteArray ack =
             QByteArray::fromHex("41434BEEB6");
 
-    while(buffer.size() >= ack.size())
+    // =====================================================
+    // TWO WIRE RESULT RECEPTION
+    // =====================================================
+
+    if (m_receivingTwoWireResults)
     {
-        if(buffer.left(5) == ack)
+        const QByteArray endMarker = "ABCDE";
+
+        // Number of results is already known from the table/test
+        int expectedResults = m_twoWireExpectedResults;
+
+        // --------------------------------------------------------
+        // Receive results
+        // --------------------------------------------------------
+        while (m_twoWireResults.size() < expectedResults &&
+               buffer.size() >= 4)
         {
-            buffer.remove(0,5);
+            QByteArray floatBytes = buffer.left(4);
 
-            emit executeWriteToNotes("ACK Received");
+            float value = 0.0f;
 
-            //-------------------------------------------------
+            memcpy(&value,
+                   floatBytes.constData(),
+                   sizeof(float));
+
+            buffer.remove(0, 4);
+
+            m_twoWireResults.append(value);
+
+            int resultIndex =
+                    m_twoWireResults.size() - 1;
+
+            qDebug() << "Two Wire Result:"
+                     << resultIndex + 1
+                     << value;
+
+            emit executeWriteToNotes(
+                QString("Two Wire Result %1 : %2")
+                    .arg(resultIndex + 1)
+                    .arg(value));
+
+            // ⭐ LIVE TABLE UPDATE
+            emit twoWireResultReceived(
+                value,
+                resultIndex);
+        }
+
+        // --------------------------------------------------------
+        // All expected results received.
+        // Now wait for ABCDE.
+        // --------------------------------------------------------
+        if (m_twoWireResults.size() == expectedResults)
+        {
+            int endIndex = buffer.indexOf(endMarker);
+
+            if (endIndex >= 0)
+            {
+                buffer.remove(
+                    0,
+                    endIndex + endMarker.size());
+
+                m_receivingTwoWireResults = false;
+
+                emit executeWriteToNotes(
+                    "Two Wire Result Transmission Completed");
+
+                qDebug()
+                    << "ABCDE received - result reception complete";
+
+                emit twoWireResultsCompleted();
+            }
+        }
+
+        return;
+    }
+
+    // =====================================================
+    // ACK PROCESSING
+    // =====================================================
+
+    while (buffer.size() >= ack.size())
+    {
+        if (buffer.left(5) == ack)
+        {
+            buffer.remove(0, 5);
+
+            emit executeWriteToNotes(
+                        "ACK Received");
+
+            // =================================================
             // ACK for START Packet
-            //-------------------------------------------------
+            // =================================================
 
-            if(m_waitingForStartAck)
+            if (m_waitingForStartAck)
             {
                 m_waitingForStartAck = false;
 
                 m_currentPacket = 0;
 
-                if(!m_packets.isEmpty())
+                if (!m_packets.isEmpty())
                 {
                     serial->write(m_packets[0]);
 
@@ -270,7 +363,9 @@ void TestController::onReadyRead()
                                 .arg(1));
 
                     emit executeWriteToNotes(
-                                m_packets[0].toHex(' ').toUpper());
+                                m_packets[0]
+                                .toHex(' ')
+                                .toUpper());
 
                     m_waitingForPacketAck = true;
                 }
@@ -278,21 +373,22 @@ void TestController::onReadyRead()
                 continue;
             }
 
-            //-------------------------------------------------
+            // =================================================
             // ACK for DATA Packet
-            //-------------------------------------------------
+            // =================================================
 
-            if(m_waitingForPacketAck)
+            if (m_waitingForPacketAck)
             {
                 m_currentPacket++;
 
-                if(m_currentPacket < m_packets.size())
+                if (m_currentPacket < m_packets.size())
                 {
-                    serial->write(m_packets[m_currentPacket]);
+                    serial->write(
+                                m_packets[m_currentPacket]);
 
                     emit executeWriteToNotes(
                                 QString("TX Packet %1")
-                                .arg(m_currentPacket+1));
+                                .arg(m_currentPacket + 1));
 
                     emit executeWriteToNotes(
                                 m_packets[m_currentPacket]
@@ -306,7 +402,20 @@ void TestController::onReadyRead()
                     emit executeWriteToNotes(
                                 "Two Wire Transmission Completed");
 
-                    qDebug()<<"Transmission Complete";
+                    qDebug()
+                            << "Transmission Complete";
+
+                    // =============================================
+                    // NOW EXPECT FLOAT RESULTS FROM CHT
+                    // =============================================
+
+                    m_receivingTwoWireResults = true;
+
+                    qDebug()
+                            << "Waiting for Two Wire float results...";
+
+                    emit executeWriteToNotes(
+                                "Waiting for Two Wire float results...");
                 }
 
                 continue;
@@ -314,7 +423,12 @@ void TestController::onReadyRead()
         }
         else
         {
-            buffer.remove(0,1);
+            // -------------------------------------------------
+            // We are still in ACK mode.
+            // Discard byte until ACK is found.
+            // -------------------------------------------------
+
+            buffer.remove(0, 1);
         }
     }
 }
