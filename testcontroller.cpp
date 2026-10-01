@@ -245,12 +245,387 @@ void TestController::setTwoWireExpectedResults(int count)
              << m_twoWireExpectedResults;
 }
 
+void TestController::startSelfTest()
+{
+    if (!serial->isOpen())
+    {
+        emit executeWriteToNotes(
+                    "Self Test Error: Serial port not open.");
+        return;
+    }
+
+    // -------------------------------------------------
+    // Reset Self Test state
+    // -------------------------------------------------
+
+    // Clear previous communication data
+    buffer.clear();
+
+    m_selfTestSlots.clear();
+
+    m_currentSelfTestSlotIndex = -1;
+
+    m_selfTestRunning = true;
+
+    resultsOfSelfTestBytes.clear();
+
+    // -------------------------------------------------
+    // Create slot sequence
+    //
+    // 1 ... 29
+    // 31
+    //
+    // Slot 30 is intentionally missing.
+    // -------------------------------------------------
+
+    for (quint8 slot = 1; slot <= 29; ++slot)
+    {
+        m_selfTestSlots.append(slot);
+    }
+
+    m_selfTestSlots.append(31);
+
+    // -------------------------------------------------
+    // Start with first slot
+    // -------------------------------------------------
+
+    m_currentSelfTestSlotIndex = 0;
+
+    quint8 slotNum =
+            m_selfTestSlots[
+                m_currentSelfTestSlotIndex];
+
+    // -------------------------------------------------
+    // Build command
+    //
+    // 53 4B 39 SLOT XOR
+    // -------------------------------------------------
+
+    QByteArray command;
+
+    command.append(
+                static_cast<quint8>(0x53));
+
+    command.append(
+                static_cast<quint8>(0x4B));
+
+    command.append(
+                static_cast<quint8>(0x39));
+
+    command.append(slotNum);
+
+    quint8 checksum =
+            0x53 ^
+            0x4B ^
+            0x39 ^
+            slotNum;
+
+    command.append(checksum);
+
+    // -------------------------------------------------
+    // Send first Self Test command
+    // -------------------------------------------------
+
+    serial->write(command);
+
+    QString txHex =
+            QString::fromLatin1(
+                command.toHex(' ').toUpper());
+
+    qDebug() << "Self Test TX:"
+             << txHex;
+
+    emit executeWriteToNotes(
+                QString("Self Test TX Slot %1 : %2")
+                .arg(static_cast<int>(slotNum))
+                .arg(txHex));
+
+    qDebug()
+            << "Self Test TX Slot:"
+            << slotNum
+            << command.toHex(' ').toUpper();
+}
+
 void TestController::onReadyRead()
 {
     buffer.append(serial->readAll());
 
     qDebug() << "RX BUFFER:"
              << buffer.toHex(' ').toUpper();
+
+    // =====================================================
+    // SELF TEST RECEPTION START
+    // =====================================================
+
+    if (m_selfTestRunning)
+    {
+        const QByteArray endMarker =
+                QByteArray::fromHex("FF4142434445");
+
+        const QByteArray missingSlot =
+                QByteArray::fromHex("4B53410158");
+
+        // =================================================
+        // MISSING SLOT
+        // CHT sends: 4B 53 41 01 58
+        // We append internally to:
+        // FF ABCDE
+        // =================================================
+
+        if (buffer.size() >= missingSlot.size() &&
+            buffer.left(missingSlot.size()) == missingSlot)
+        {
+            quint8 currentSlot =
+                    m_selfTestSlots[
+                        m_currentSelfTestSlotIndex];
+
+            // ---------------------------------------------
+            // Store missing-slot marker
+            // ---------------------------------------------
+
+            QByteArray oneSlotResult;
+
+            oneSlotResult.append(missingSlot);
+            oneSlotResult.append(endMarker);
+
+            resultsOfSelfTestBytes.append(
+                        oneSlotResult);
+
+            emit selfTestSlotResult(
+                        static_cast<int>(currentSlot),
+                        oneSlotResult);
+            // ---------------------------------------------
+            // Add standard slot terminator
+            // ---------------------------------------------
+
+            resultsOfSelfTestBytes.append(
+                        endMarker);
+
+            emit executeWriteToNotes(
+                QString("Self Test Slot %1 RX : SLOT_MISS")
+                .arg(static_cast<int>(currentSlot)));
+
+            // ---------------------------------------------
+            // Clear current slot RX buffer
+            // ---------------------------------------------
+
+            buffer.clear();
+
+            // ---------------------------------------------
+            // Move to next slot
+            // ---------------------------------------------
+
+            m_currentSelfTestSlotIndex++;
+
+            // ---------------------------------------------
+            // All slots completed
+            // ---------------------------------------------
+
+            if (m_currentSelfTestSlotIndex
+                    >= m_selfTestSlots.size())
+            {
+                m_selfTestRunning = false;
+
+                emit executeWriteToNotes(
+                    "Self Test Completed");
+
+                emit selfTestResultsCompleted(
+                            resultsOfSelfTestBytes);
+
+                qDebug()
+                    << "SELF TEST ALL RESULTS:"
+                    << resultsOfSelfTestBytes
+                           .toHex(' ')
+                           .toUpper();
+
+                return;
+            }
+
+            // ---------------------------------------------
+            // Send next slot
+            // ---------------------------------------------
+
+            quint8 nextSlot =
+                    m_selfTestSlots[
+                        m_currentSelfTestSlotIndex];
+
+            QByteArray command;
+
+            command.append(
+                        static_cast<quint8>(0x53));
+
+            command.append(
+                        static_cast<quint8>(0x4B));
+
+            command.append(
+                        static_cast<quint8>(0x39));
+
+            command.append(nextSlot);
+
+            quint8 checksum =
+                    0x53 ^
+                    0x4B ^
+                    0x39 ^
+                    nextSlot;
+
+            command.append(checksum);
+
+            pauseFor(800);
+
+            serial->write(command);
+
+            QString txHex =
+                    QString::fromLatin1(
+                        command.toHex(' ')
+                        .toUpper());
+
+            emit executeWriteToNotes(
+                QString("Self Test TX Slot %1 : %2")
+                .arg(static_cast<int>(nextSlot))
+                .arg(txHex));
+
+            qDebug()
+                << "Self Test TX Slot:"
+                << static_cast<int>(nextSlot)
+                << txHex;
+
+            return;
+        }
+
+        // =================================================
+        // NORMAL SLOT RESPONSE
+        // =================================================
+
+        int endIndex =
+                buffer.indexOf(endMarker);
+
+        if (endIndex >= 0)
+        {
+            // ---------------------------------------------
+            // One complete slot response received
+            // ---------------------------------------------
+
+            int slotEnd =
+                    endIndex + endMarker.size();
+
+            QByteArray oneSlotResult =
+                    buffer.left(slotEnd);
+
+            // ---------------------------------------------
+            // Store this slot's complete raw response
+            // ---------------------------------------------
+
+            quint8 currentSlot =
+                    m_selfTestSlots[
+                        m_currentSelfTestSlotIndex];
+
+            resultsOfSelfTestBytes.append(
+                        oneSlotResult);
+
+            emit selfTestSlotResult(
+                        static_cast<int>(currentSlot),
+                        oneSlotResult);
+
+            emit executeWriteToNotes(
+                QString("Self Test Slot %1 RX : %2")
+                .arg(static_cast<int>(currentSlot))
+                .arg(QString::fromLatin1(
+                         oneSlotResult
+                         .toHex(' ')
+                         .toUpper())));
+
+            // ---------------------------------------------
+            // Clear global buffer
+            // ---------------------------------------------
+
+            buffer.clear();
+
+            // ---------------------------------------------
+            // Move to next slot
+            // ---------------------------------------------
+
+            m_currentSelfTestSlotIndex++;
+
+            // ---------------------------------------------
+            // All slots completed
+            // ---------------------------------------------
+
+            if (m_currentSelfTestSlotIndex
+                    >= m_selfTestSlots.size())
+            {
+                m_selfTestRunning = false;
+
+                emit executeWriteToNotes(
+                    "Self Test Completed");
+
+                emit selfTestResultsCompleted(
+                            resultsOfSelfTestBytes);
+
+                qDebug()
+                    << "SELF TEST ALL RESULTS:"
+                    << resultsOfSelfTestBytes
+                           .toHex(' ')
+                           .toUpper();
+
+                return;
+            }
+
+            // ---------------------------------------------
+            // Send next slot
+            // ---------------------------------------------
+
+            quint8 nextSlot =
+                    m_selfTestSlots[
+                        m_currentSelfTestSlotIndex];
+
+            QByteArray command;
+
+            command.append(
+                        static_cast<quint8>(0x53));
+
+            command.append(
+                        static_cast<quint8>(0x4B));
+
+            command.append(
+                        static_cast<quint8>(0x39));
+
+            command.append(nextSlot);
+
+            quint8 checksum =
+                    0x53 ^
+                    0x4B ^
+                    0x39 ^
+                    nextSlot;
+
+            command.append(checksum);
+
+            pauseFor(200);
+
+            serial->write(command);
+
+            QString txHex =
+                    QString::fromLatin1(
+                        command.toHex(' ')
+                        .toUpper());
+
+            emit executeWriteToNotes(
+                QString("Self Test TX Slot %1 : %2")
+                .arg(static_cast<int>(nextSlot))
+                .arg(txHex));
+
+            qDebug()
+                << "Self Test TX Slot:"
+                << static_cast<int>(nextSlot)
+                << txHex;
+        }
+
+        return;
+    }
+
+    // =====================================================
+    // SELF TEST RECEPTION END
+    // =====================================================
+
 
     const QByteArray ack =
             QByteArray::fromHex("41434BEEB6");

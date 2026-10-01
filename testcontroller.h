@@ -6,6 +6,9 @@
 #include <QSerialPort>
 #include <QSerialPortInfo>
 
+#include <QEventLoop>
+#include <QTimer>
+#include <QApplication>
 
 class MainWindow;
 class TestController:public QObject
@@ -13,7 +16,7 @@ class TestController:public QObject
     Q_OBJECT
 public:
     explicit TestController(QObject *parent = nullptr);
-     ~TestController();
+    ~TestController();
     void welcome();
     QStringList availablePorts();
     void setPORTNAME(const QString &portName);
@@ -51,7 +54,7 @@ public:
     }
 
     void startTwoWireTransmission(const QByteArray &startPacket,
-                                     const QVector<QByteArray> &packets);
+                                  const QVector<QByteArray> &packets);
 
     inline QVector<float> getTwoWireResults() const
     {
@@ -59,6 +62,16 @@ public:
     }
 
     void setTwoWireExpectedResults(int count);
+
+    //Self Test
+    void startSelfTest();
+
+    inline void pauseFor(int milliseconds) {
+        QEventLoop loop;
+        QTimer::singleShot(milliseconds, &loop, &QEventLoop::quit);  // After delay, quit the event loop
+        loop.exec();  // Start the event loop and wait for it to quit
+        QApplication::processEvents();  // Keep UI healthy
+    }
 
 private slots:
     void onReadyRead();
@@ -68,9 +81,20 @@ signals:
     void portOpening(const QString &);
     void executeWriteToNotes(const QString &dataNotes);
 
-     void twoWireResultReceived(float value, int index);
+    void twoWireResultReceived(float value, int index);
 
-     void twoWireResultsCompleted();
+    void twoWireResultsCompleted();
+
+    //Self Test Signals
+
+    // One slot response completed
+    void selfTestSlotResult(
+            int slotNumber,
+            const QByteArray &slotResult);
+
+    // All 30 slot responses completed
+    void selfTestResultsCompleted(
+            const QByteArray &allResults);
 
 private:
     QSerialPort *serial;
@@ -102,7 +126,14 @@ private:
     QVector<float> m_twoWireResults;
     bool m_receivingTwoWireResults = false;
 
-     int m_twoWireExpectedResults = 0;
+    int m_twoWireExpectedResults = 0;
+
+    //Self Test
+    QVector<quint8> m_selfTestSlots;
+    int m_currentSelfTestSlotIndex = -1;
+    bool m_selfTestRunning = false;
+
+    QByteArray resultsOfSelfTestBytes;
 };
 
 #endif // TESTCONTROLLER_H

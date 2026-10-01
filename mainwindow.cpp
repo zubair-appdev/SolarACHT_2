@@ -135,6 +135,18 @@ MainWindow::MainWindow(QWidget *parent)
             this,
             &MainWindow::processTwoWireResults);
 
+
+    // Self test results signals
+    connect(test,
+            &TestController::selfTestSlotResult,
+            this,
+            &MainWindow::onSelfTestSlotResult);
+
+    connect(test,
+            &TestController::selfTestResultsCompleted,
+            this,
+            &MainWindow::onSelfTestResultsCompleted);
+
 }
 MainWindow::~MainWindow()
 {
@@ -2475,6 +2487,396 @@ QString MainWindow::formatTwoWireExpected(
     return value;
 }
 
+void MainWindow::onSelfTestSlotResult(
+        int slotNumber,
+        const QByteArray &slotResult)
+{
+    qDebug()
+        << "MainWindow Self Test Slot:"
+        << slotNumber
+        << slotResult.toHex(' ').toUpper();
+
+    writeToNotes(
+        QString("Self Test Slot %1 Result : %2")
+        .arg(slotNumber)
+        .arg(QString::fromLatin1(
+                 slotResult.toHex(' ').toUpper())));
+
+    // =================================================
+    // FIND RELAY BOARD
+    // =================================================
+
+    int boardNumber = -1;
+
+    if (slotNumber == 1 || slotNumber == 2)
+        boardNumber = 1;
+    else if (slotNumber == 3 || slotNumber == 4)
+        boardNumber = 2;
+    else if (slotNumber == 5 || slotNumber == 6)
+        boardNumber = 3;
+    else if (slotNumber == 7 || slotNumber == 8)
+        boardNumber = 4;
+    else if (slotNumber == 9 || slotNumber == 10)
+        boardNumber = 5;
+    else if (slotNumber == 11 || slotNumber == 12)
+        boardNumber = 6;
+    else if (slotNumber == 13 || slotNumber == 14)
+        boardNumber = 7;
+    else if (slotNumber == 15 || slotNumber == 16)
+        boardNumber = 8;
+    else if (slotNumber == 17 || slotNumber == 18)
+        boardNumber = 9;
+    else if (slotNumber == 19 || slotNumber == 20)
+        boardNumber = 10;
+    else if (slotNumber == 21 || slotNumber == 22)
+        boardNumber = 11;
+    else if (slotNumber == 23 || slotNumber == 24)
+        boardNumber = 12;
+    else if (slotNumber == 25 || slotNumber == 26)
+        boardNumber = 13;
+    else if (slotNumber == 27 || slotNumber == 28)
+        boardNumber = 14;
+    else if (slotNumber == 29 || slotNumber == 31)
+        boardNumber = 15;
+
+    if (boardNumber < 1 ||
+        boardNumber > 15)
+    {
+        return;
+    }
+
+    // =================================================
+    // GET CORRESPONDING TEXT EDIT
+    // =================================================
+
+    QTextEdit *textEdit = nullptr;
+
+    switch (boardNumber)
+    {
+    case 1:
+        textEdit = ui->textEdit_1;
+        break;
+
+    case 2:
+        textEdit = ui->textEdit_2;
+        break;
+
+    case 3:
+        textEdit = ui->textEdit_3;
+        break;
+
+    case 4:
+        textEdit = ui->textEdit_4;
+        break;
+
+    case 5:
+        textEdit = ui->textEdit_5;
+        break;
+
+    case 6:
+        textEdit = ui->textEdit_6;
+        break;
+
+    case 7:
+        textEdit = ui->textEdit_7;
+        break;
+
+    case 8:
+        textEdit = ui->textEdit_8;
+        break;
+
+    case 9:
+        textEdit = ui->textEdit_9;
+        break;
+
+    case 10:
+        textEdit = ui->textEdit_10;
+        break;
+
+    case 11:
+        textEdit = ui->textEdit_11;
+        break;
+
+    case 12:
+        textEdit = ui->textEdit_12;
+        break;
+
+    case 13:
+        textEdit = ui->textEdit_13;
+        break;
+
+    case 14:
+        textEdit = ui->textEdit_14;
+        break;
+
+    case 15:
+        textEdit = ui->textEdit_15;
+        break;
+    }
+
+    if (!textEdit)
+        return;
+
+    // =================================================
+    // CURRENT SLOT IS BEING PROCESSED
+    // =================================================
+
+    textEdit->setStyleSheet(
+        "background-color: #FFF59D;");
+
+    // =================================================
+    // REMOVE FF ABCDE
+    // =================================================
+
+    QByteArray data = slotResult;
+
+    const QByteArray endMarker =
+            QByteArray::fromHex(
+                "FF4142434445");
+
+    int endIndex =
+            data.indexOf(endMarker);
+
+    if (endIndex >= 0)
+    {
+        data.remove(
+            endIndex,
+            endMarker.size());
+    }
+
+    // =================================================
+    // CHECK SLOT MISS
+    // =================================================
+
+    const QByteArray missingMarker =
+            QByteArray::fromHex(
+                "4B53410158");
+
+    bool slotMissing =
+            (data == missingMarker);
+
+    if (slotMissing)
+    {
+        m_selfTestBoardMissing[boardNumber - 1] = true;
+
+        textEdit->setStyleSheet(
+            "background-color: #FFCDD2;");
+
+        textEdit->setPlainText(
+            QString("Relay Board %1\n"
+                    "SLOT MISS")
+            .arg(boardNumber));
+
+        writeToNotes(
+            QString("Relay Board %1 : SLOT MISS")
+            .arg(boardNumber));
+    }
+    else
+    {
+        // =================================================
+        // PARSE FAILED PINS
+        // =================================================
+        //
+        // Example:
+        //
+        // 02 20
+        //
+        // Connector = 02
+        // Pin       = 20
+        //
+        // For second 64-pin command:
+        //
+        // Pin 1  -> 65
+        // Pin 2  -> 66
+        // ...
+        // Pin 64 -> 128
+        //
+        // =================================================
+
+        bool secondHalf =
+                (slotNumber % 2 == 0) ||
+                (boardNumber == 15 &&
+                 slotNumber == 31);
+
+        for (int i = 0;
+             i + 1 < data.size();
+             i += 2)
+        {
+            quint8 connector =
+                    static_cast<quint8>(
+                        data.at(i));
+
+            quint8 pin =
+                    static_cast<quint8>(
+                        data.at(i + 1));
+
+            Q_UNUSED(connector);
+
+            int physicalPin =
+                    static_cast<int>(pin);
+
+            if (secondHalf)
+            {
+                physicalPin += 64;
+            }
+
+            m_selfTestFailedPins[
+                boardNumber - 1].append(
+                    physicalPin);
+        }
+    }
+
+    // =================================================
+    // DETERMINE WHETHER THIS IS SECOND SLOT
+    // =================================================
+
+    bool secondSlot =
+            (slotNumber % 2 == 0) ||
+            (boardNumber == 15 &&
+             slotNumber == 31);
+
+    // =================================================
+    // FIRST 64-PIN SLOT
+    // =================================================
+
+    if (!secondSlot)
+    {
+        if (slotMissing)
+        {
+            textEdit->setStyleSheet(
+                "background-color: #FFCDD2;");
+
+            textEdit->setPlainText(
+                QString("Relay Board %1\n"
+                        "SLOT %2 : SLOT MISS\n"
+                        "Testing next 64 pins...")
+                .arg(boardNumber)
+                .arg(slotNumber));
+        }
+        else
+        {
+            textEdit->setStyleSheet(
+                "background-color: #FFF59D;");
+
+            textEdit->setPlainText(
+                QString("Relay Board %1\n"
+                        "Slot %2 Completed\n"
+                        "Testing next 64 pins...")
+                .arg(boardNumber)
+                .arg(slotNumber));
+        }
+
+        return;
+    }
+
+    // =================================================
+    // BOTH 64-PIN SLOTS COMPLETED
+    // =================================================
+
+    const QVector<int> &failedPins =
+            m_selfTestFailedPins[
+                boardNumber - 1];
+
+    bool boardFailed =
+            m_selfTestBoardMissing[
+                boardNumber - 1] ||
+            !failedPins.isEmpty();
+
+    // =================================================
+    // BOARD PASS
+    // =================================================
+
+    if (!boardFailed)
+    {
+        textEdit->setStyleSheet(
+            "background-color: #A5D6A7;");
+
+        textEdit->setPlainText(
+            QString("Relay Board %1\n"
+                    "PASS")
+            .arg(boardNumber));
+
+        writeToNotes(
+            QString("Relay Board %1 : PASS")
+            .arg(boardNumber));
+    }
+
+    // =================================================
+    // BOARD FAIL
+    // =================================================
+
+    else
+    {
+        textEdit->setStyleSheet(
+            "background-color: #FFCDD2;");
+
+        QStringList pinStrings;
+
+        for (int pin : failedPins)
+        {
+            pinStrings.append(
+                QString::number(pin));
+        }
+
+        QString resultText =
+                QString("Relay Board %1\n"
+                        "FAIL")
+                .arg(boardNumber);
+
+        if (!pinStrings.isEmpty())
+        {
+            resultText +=
+                    QString("\n"
+                            "Failed Pins: %1")
+                    .arg(pinStrings.join(", "));
+        }
+
+        if (m_selfTestBoardMissing[
+                boardNumber - 1])
+        {
+            resultText +=
+                    "\nSLOT MISS";
+        }
+
+        textEdit->setPlainText(
+            resultText);
+
+        writeToNotes(
+            QString("Relay Board %1 : FAIL")
+            .arg(boardNumber));
+
+        if (!pinStrings.isEmpty())
+        {
+            writeToNotes(
+                QString("Failed Pins: %1")
+                .arg(pinStrings.join(", ")));
+        }
+
+        if (m_selfTestBoardMissing[
+                boardNumber - 1])
+        {
+            writeToNotes(
+                "SLOT MISS detected");
+        }
+    }
+}
+
+void MainWindow::onSelfTestResultsCompleted(
+        const QByteArray &allResults)
+{
+    qDebug()
+        << "MainWindow Self Test ALL RESULTS:"
+        << allResults.toHex(' ').toUpper();
+
+    writeToNotes(
+        "Self Test All Results Received");
+
+    QMessageBox::information(
+        this,
+        "Self Test",
+        "Self Test Completed.");
+}
+
 void MainWindow::onPortSelected(const QString &portName)
 {
     test->setPORTNAME(portName);
@@ -3117,4 +3519,69 @@ void MainWindow::on_pushButton_delHarnessRow_clicked()
 void MainWindow::on_pushButton_backFromTwoWireTest_clicked()
 {
     ui->stackedWidget->setCurrentWidget(ui->page_test);
+}
+
+void MainWindow::on_pushButton_selfTest_clicked()
+{
+    ui->stackedWidget->setCurrentWidget(ui->page_selfTest);
+}
+
+
+void MainWindow::on_pushButton_selfBack_clicked()
+{
+    ui->stackedWidget->setCurrentWidget(ui->page_testPage);
+}
+
+void MainWindow::on_pushButton_selfRun_clicked()
+{
+    if (!test)
+        return;
+
+    if (!test->isConnected())
+    {
+        QMessageBox::warning(
+                    this,
+                    "Self Test",
+                    "Serial port is not connected.");
+        return;
+    }
+
+    // Reset all Self Test Relay Board displays
+    for (int i = 1; i <= 15; ++i)
+    {
+        QTextEdit *textEdit =
+                findChild<QTextEdit *>(
+                    QString("textEdit_%1").arg(i));
+
+        if (textEdit)
+        {
+            textEdit->clear();
+            textEdit->setStyleSheet("");
+        }
+    }
+
+    writeToNotes(
+        "==============================");
+
+    writeToNotes(
+        "Self Test Started");
+
+    writeToNotes(
+        "==============================");
+
+    // Show Self Test started immediately
+    ui->textEdit_1->setStyleSheet(
+        "background-color: #FFF59D;");
+
+    ui->textEdit_1->setPlainText(
+        "Relay Board 1\n"
+        "Slot 1 Testing...");
+
+    for (int i = 0; i < 15; ++i)
+    {
+        m_selfTestFailedPins[i].clear();
+        m_selfTestBoardMissing[i] = false;
+    }
+
+    test->startSelfTest();
 }

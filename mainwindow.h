@@ -207,6 +207,12 @@ private slots:
 
       void on_pushButton_backFromTwoWireTest_clicked();
 
+      void on_pushButton_selfTest_clicked();
+
+      void on_pushButton_selfBack_clicked();
+
+      void on_pushButton_selfRun_clicked();
+
 public slots:
 
       void portStatus(const QString &data);
@@ -219,6 +225,14 @@ public slots:
 
       QString formatTwoWireExpected(
               const QString &expected);
+
+      //Self Test result slots
+      void onSelfTestSlotResult(
+              int slotNumber,
+              const QByteArray &slotResult);
+
+      void onSelfTestResultsCompleted(
+              const QByteArray &allResults);
 
 private:
     Ui::MainWindow *ui;
@@ -252,6 +266,11 @@ private:
     QStandardItemModel *m_twoWireTestModel = nullptr;
 
     int expectedResults = 0;
+
+    //Self test variables
+    QVector<int> m_selfTestFailedPins[15];
+    bool m_selfTestSlotDone[15] = {false};
+    bool m_selfTestBoardMissing[15] = {false};
 
 };
 
