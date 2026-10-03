@@ -213,6 +213,16 @@ private slots:
 
       void on_pushButton_selfRun_clicked();
 
+      void on_pushButton_selfAbort_clicked();
+
+      void on_pushButton_stopTwoWireTest_clicked();
+
+      void on_pushButton_calibrationTest_clicked();
+
+      void on_pushButton_calibrationRun_clicked();
+
+      void on_pushButton_calibrationBack_clicked();
+
 public slots:
 
       void portStatus(const QString &data);
@@ -233,6 +243,8 @@ public slots:
 
       void onSelfTestResultsCompleted(
               const QByteArray &allResults);
+
+      void onSelfTestSlotStarted(int slotNumber);
 
 private:
     Ui::MainWindow *ui;
@@ -269,8 +281,14 @@ private:
 
     //Self test variables
     QVector<int> m_selfTestFailedPins[15];
-    bool m_selfTestSlotDone[15] = {false};
     bool m_selfTestBoardMissing[15] = {false};
+
+    //Calibration Test
+    QStandardItemModel *m_calibrationModel = nullptr;
+
+    QVector<quint8> m_calibrationSlots;
+    int m_currentCalibrationSlotIndex = -1;
+    bool m_calibrationRunning = false;
 
 };
 

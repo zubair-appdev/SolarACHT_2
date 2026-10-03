@@ -326,6 +326,9 @@ void TestController::startSelfTest()
     // Send first Self Test command
     // -------------------------------------------------
 
+    emit selfTestSlotStarted(
+        static_cast<int>(slotNum));
+
     serial->write(command);
 
     QString txHex =
@@ -344,6 +347,66 @@ void TestController::startSelfTest()
             << "Self Test TX Slot:"
             << slotNum
             << command.toHex(' ').toUpper();
+}
+
+void TestController::startCalibration(quint8 slotNumber)
+{
+    if (!serial || !serial->isOpen())
+    {
+        QMessageBox::warning(
+            nullptr,
+            "Calibration Test",
+            "Serial port is not connected.");
+        return;
+    }
+
+    QByteArray command;
+
+    command.append(0x53);
+    command.append(0x4B);
+    command.append(0x37);
+    command.append(slotNumber);
+
+    quint8 checksum =
+        0x53 ^
+        0x4B ^
+        0x37 ^
+        slotNumber;
+
+    command.append(checksum);
+
+    serial->write(command);
+
+    qDebug() << "Calibration TX:"
+             << command.toHex(' ').toUpper();
+}
+
+void TestController::abortCommand()
+{
+    serial->write(QByteArray::fromHex("41 42 4F 52 54"));;
+    emit executeWriteToNotes("TX Abort : 41 42 4F 52 54");
+
+    // Stop Self Test
+    m_selfTestRunning = false;
+    m_currentSelfTestSlotIndex = -1;
+    m_selfTestSlots.clear();
+
+    // Stop Two Wire
+    m_receivingTwoWireResults = false;
+    m_waitingForStartAck = false;
+    m_waitingForPacketAck = false;
+
+    // Reset packet state
+    m_currentPacket = 0;
+    m_packets.clear();
+
+    // Clear received data
+    buffer.clear();
+    resultsOfSelfTestBytes.clear();
+    m_twoWireResults.clear();
+
+    emit executeWriteToNotes(
+                "Test Aborted");
 }
 
 void TestController::onReadyRead()
@@ -471,6 +534,9 @@ void TestController::onReadyRead()
             command.append(checksum);
 
             pauseFor(800);
+
+            emit selfTestSlotStarted(
+                static_cast<int>(nextSlot));
 
             serial->write(command);
 
@@ -600,6 +666,9 @@ void TestController::onReadyRead()
             command.append(checksum);
 
             pauseFor(200);
+
+            emit selfTestSlotStarted(
+                static_cast<int>(nextSlot));
 
             serial->write(command);
 

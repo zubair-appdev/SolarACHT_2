@@ -147,6 +147,11 @@ MainWindow::MainWindow(QWidget *parent)
             this,
             &MainWindow::onSelfTestResultsCompleted);
 
+    connect(test,
+            &TestController::selfTestSlotStarted,
+            this,
+            &MainWindow::onSelfTestSlotStarted);
+
 }
 MainWindow::~MainWindow()
 {
@@ -2655,21 +2660,17 @@ void MainWindow::onSelfTestSlotResult(
     bool slotMissing =
             (data == missingMarker);
 
+    bool currentSlotHasFailedPins = false;
+
     if (slotMissing)
     {
-        m_selfTestBoardMissing[boardNumber - 1] = true;
-
-        textEdit->setStyleSheet(
-            "background-color: #FFCDD2;");
-
-        textEdit->setPlainText(
-            QString("Relay Board %1\n"
-                    "SLOT MISS")
-            .arg(boardNumber));
+        m_selfTestBoardMissing[
+            boardNumber - 1] = true;
 
         writeToNotes(
-            QString("Relay Board %1 : SLOT MISS")
-            .arg(boardNumber));
+            QString("Relay Board %1 : SLOT %2 MISS")
+            .arg(boardNumber)
+            .arg(slotNumber));
     }
     else
     {
@@ -2698,6 +2699,11 @@ void MainWindow::onSelfTestSlotResult(
                 (boardNumber == 15 &&
                  slotNumber == 31);
 
+        int failedPinsBefore =
+                m_selfTestFailedPins[
+                    boardNumber - 1].size();
+
+
         for (int i = 0;
              i + 1 < data.size();
              i += 2)
@@ -2724,6 +2730,12 @@ void MainWindow::onSelfTestSlotResult(
                 boardNumber - 1].append(
                     physicalPin);
         }
+
+        currentSlotHasFailedPins =
+                m_selfTestFailedPins[
+                    boardNumber - 1].size()
+                > failedPinsBefore;
+
     }
 
     // =================================================
@@ -2746,23 +2758,32 @@ void MainWindow::onSelfTestSlotResult(
             textEdit->setStyleSheet(
                 "background-color: #FFCDD2;");
 
-            textEdit->setPlainText(
-                QString("Relay Board %1\n"
-                        "SLOT %2 : SLOT MISS\n"
-                        "Testing next 64 pins...")
-                .arg(boardNumber)
+            textEdit->append(
+                QString("SLOT %1 : SLOT MISS")
+                .arg(slotNumber));
+
+            writeToNotes(
+                QString("SLOT %1 : SLOT MISS")
+                .arg(slotNumber));
+        }
+        else if (currentSlotHasFailedPins)
+        {
+            textEdit->append(
+                QString("SLOT %1 FAIL")
+                .arg(slotNumber));
+
+            writeToNotes(
+                QString("SLOT %1 FAIL")
                 .arg(slotNumber));
         }
         else
         {
-            textEdit->setStyleSheet(
-                "background-color: #FFF59D;");
+            textEdit->append(
+                QString("SLOT %1 Pass")
+                .arg(slotNumber));
 
-            textEdit->setPlainText(
-                QString("Relay Board %1\n"
-                        "Slot %2 Completed\n"
-                        "Testing next 64 pins...")
-                .arg(boardNumber)
+            writeToNotes(
+                QString("SLOT %1 Pass")
                 .arg(slotNumber));
         }
 
@@ -2776,6 +2797,29 @@ void MainWindow::onSelfTestSlotResult(
     const QVector<int> &failedPins =
             m_selfTestFailedPins[
                 boardNumber - 1];
+
+    // =================================================
+    // SECOND SLOT RESULT
+    // =================================================
+
+    if (slotMissing)
+    {
+        textEdit->append(
+            QString("SLOT %1 : SLOT MISS")
+            .arg(slotNumber));
+    }
+    else if (currentSlotHasFailedPins)
+    {
+        textEdit->append(
+            QString("SLOT %1 FAIL")
+            .arg(slotNumber));
+    }
+    else
+    {
+        textEdit->append(
+            QString("SLOT %1 Pass")
+            .arg(slotNumber));
+    }
 
     bool boardFailed =
             m_selfTestBoardMissing[
@@ -2791,10 +2835,7 @@ void MainWindow::onSelfTestSlotResult(
         textEdit->setStyleSheet(
             "background-color: #A5D6A7;");
 
-        textEdit->setPlainText(
-            QString("Relay Board %1\n"
-                    "PASS")
-            .arg(boardNumber));
+        textEdit->append("PASS");
 
         writeToNotes(
             QString("Relay Board %1 : PASS")
@@ -2818,28 +2859,22 @@ void MainWindow::onSelfTestSlotResult(
                 QString::number(pin));
         }
 
-        QString resultText =
-                QString("Relay Board %1\n"
-                        "FAIL")
-                .arg(boardNumber);
+        QString resultText = "FAIL";
 
         if (!pinStrings.isEmpty())
         {
             resultText +=
-                    QString("\n"
-                            "Failed Pins: %1")
-                    .arg(pinStrings.join(", "));
+                QString("\nFailed Pins: %1")
+                .arg(pinStrings.join(", "));
         }
 
         if (m_selfTestBoardMissing[
                 boardNumber - 1])
         {
-            resultText +=
-                    "\nSLOT MISS";
+            resultText += "\nSLOT MISS";
         }
 
-        textEdit->setPlainText(
-            resultText);
+        textEdit->append(resultText);
 
         writeToNotes(
             QString("Relay Board %1 : FAIL")
@@ -2874,7 +2909,84 @@ void MainWindow::onSelfTestResultsCompleted(
     QMessageBox::information(
         this,
         "Self Test",
-        "Self Test Completed.");
+                "Self Test Completed.");
+}
+
+void MainWindow::onSelfTestSlotStarted(int slotNumber)
+{
+    int boardNumber = -1;
+
+    if (slotNumber == 1 || slotNumber == 2)
+        boardNumber = 1;
+    else if (slotNumber == 3 || slotNumber == 4)
+        boardNumber = 2;
+    else if (slotNumber == 5 || slotNumber == 6)
+        boardNumber = 3;
+    else if (slotNumber == 7 || slotNumber == 8)
+        boardNumber = 4;
+    else if (slotNumber == 9 || slotNumber == 10)
+        boardNumber = 5;
+    else if (slotNumber == 11 || slotNumber == 12)
+        boardNumber = 6;
+    else if (slotNumber == 13 || slotNumber == 14)
+        boardNumber = 7;
+    else if (slotNumber == 15 || slotNumber == 16)
+        boardNumber = 8;
+    else if (slotNumber == 17 || slotNumber == 18)
+        boardNumber = 9;
+    else if (slotNumber == 19 || slotNumber == 20)
+        boardNumber = 10;
+    else if (slotNumber == 21 || slotNumber == 22)
+        boardNumber = 11;
+    else if (slotNumber == 23 || slotNumber == 24)
+        boardNumber = 12;
+    else if (slotNumber == 25 || slotNumber == 26)
+        boardNumber = 13;
+    else if (slotNumber == 27 || slotNumber == 28)
+        boardNumber = 14;
+    else if (slotNumber == 29 || slotNumber == 31)
+        boardNumber = 15;
+
+    if (boardNumber < 1 || boardNumber > 15)
+        return;
+
+    QTextEdit *textEdit = nullptr;
+
+    switch (boardNumber)
+    {
+    case 1:  textEdit = ui->textEdit_1;  break;
+    case 2:  textEdit = ui->textEdit_2;  break;
+    case 3:  textEdit = ui->textEdit_3;  break;
+    case 4:  textEdit = ui->textEdit_4;  break;
+    case 5:  textEdit = ui->textEdit_5;  break;
+    case 6:  textEdit = ui->textEdit_6;  break;
+    case 7:  textEdit = ui->textEdit_7;  break;
+    case 8:  textEdit = ui->textEdit_8;  break;
+    case 9:  textEdit = ui->textEdit_9;  break;
+    case 10: textEdit = ui->textEdit_10; break;
+    case 11: textEdit = ui->textEdit_11; break;
+    case 12: textEdit = ui->textEdit_12; break;
+    case 13: textEdit = ui->textEdit_13; break;
+    case 14: textEdit = ui->textEdit_14; break;
+    case 15: textEdit = ui->textEdit_15; break;
+    }
+
+    if (!textEdit)
+        return;
+
+    textEdit->setStyleSheet(
+        "background-color: #FFF59D;");
+
+    if (textEdit->toPlainText().isEmpty())
+    {
+        textEdit->append(
+            QString("Relay Board %1")
+            .arg(boardNumber));
+    }
+
+    textEdit->append(
+        QString("SLOT %1 Testing...")
+        .arg(slotNumber));
 }
 
 void MainWindow::onPortSelected(const QString &portName)
@@ -3529,7 +3641,21 @@ void MainWindow::on_pushButton_selfTest_clicked()
 
 void MainWindow::on_pushButton_selfBack_clicked()
 {
-    ui->stackedWidget->setCurrentWidget(ui->page_testPage);
+    for (int i = 1; i <= 15; ++i)
+    {
+        QTextEdit *textEdit =
+                findChild<QTextEdit *>(
+                    QString("textEdit_%1").arg(i));
+
+        if (textEdit)
+        {
+            textEdit->clear();
+            textEdit->setStyleSheet("");
+        }
+    }
+
+    ui->stackedWidget->setCurrentWidget(
+        ui->page_testPage);
 }
 
 void MainWindow::on_pushButton_selfRun_clicked()
@@ -3569,13 +3695,6 @@ void MainWindow::on_pushButton_selfRun_clicked()
     writeToNotes(
         "==============================");
 
-    // Show Self Test started immediately
-    ui->textEdit_1->setStyleSheet(
-        "background-color: #FFF59D;");
-
-    ui->textEdit_1->setPlainText(
-        "Relay Board 1\n"
-        "Slot 1 Testing...");
 
     for (int i = 0; i < 15; ++i)
     {
@@ -3584,4 +3703,212 @@ void MainWindow::on_pushButton_selfRun_clicked()
     }
 
     test->startSelfTest();
+}
+
+void MainWindow::on_pushButton_selfAbort_clicked()
+{
+    test->abortCommand();
+}
+
+void MainWindow::on_pushButton_stopTwoWireTest_clicked()
+{
+    test->abortCommand();
+}
+
+void MainWindow::on_pushButton_calibrationTest_clicked()
+{
+    // -------------------------------------------------
+    // Create Calibration table model
+    // -------------------------------------------------
+
+    m_calibrationModel =
+            new QStandardItemModel(
+                1920,
+                3,
+                this);
+
+    // -------------------------------------------------
+    // Headers
+    // -------------------------------------------------
+
+    m_calibrationModel->setHorizontalHeaderLabels(
+        {
+            "Connector",
+            "Pin",
+            "Calibration Value"
+        });
+
+    // -------------------------------------------------
+    // Fill 15 Connectors × 128 Pins
+    // -------------------------------------------------
+
+    int row = 0;
+
+    for (int connector = 1;
+         connector <= 15;
+         ++connector)
+    {
+        for (int pin = 1;
+             pin <= 128;
+             ++pin)
+        {
+            m_calibrationModel->setItem(
+                row,
+                0,
+                new QStandardItem(
+                    QString("%1")
+                    .arg(connector)));
+
+            m_calibrationModel->setItem(
+                row,
+                1,
+                new QStandardItem(
+                    QString::number(pin)));
+
+            m_calibrationModel->setItem(
+                row,
+                2,
+                new QStandardItem(""));
+
+            ++row;
+        }
+    }
+
+    // -------------------------------------------------
+    // Show model in table
+    // -------------------------------------------------
+
+    ui->tableView_Calibration
+        ->setModel(m_calibrationModel);
+
+    // -------------------------------------------------
+    // Table settings
+    // -------------------------------------------------
+
+    ui->tableView_Calibration
+        ->setEditTriggers(
+            QAbstractItemView::NoEditTriggers);
+
+    ui->tableView_Calibration
+        ->setSelectionBehavior(
+            QAbstractItemView::SelectRows);
+
+    ui->tableView_Calibration
+        ->setSelectionMode(
+            QAbstractItemView::SingleSelection);
+
+    // -------------------------------------------------
+    // Table settings
+    // -------------------------------------------------
+
+    ui->tableView_Calibration
+        ->setEditTriggers(
+            QAbstractItemView::NoEditTriggers);
+
+    ui->tableView_Calibration
+        ->setSelectionBehavior(
+            QAbstractItemView::SelectRows);
+
+    ui->tableView_Calibration
+        ->setSelectionMode(
+            QAbstractItemView::SingleSelection);
+
+    // -------------------------------------------------
+    // Header styling
+    // -------------------------------------------------
+
+    QFont headerFont =
+            ui->tableView_Calibration
+            ->horizontalHeader()
+            ->font();
+
+    headerFont.setPointSize(headerFont.pointSize() + 2);
+    headerFont.setBold(true);
+
+    ui->tableView_Calibration
+        ->horizontalHeader()
+        ->setFont(headerFont);
+
+    // -------------------------------------------------
+    // Equal column width
+    // -------------------------------------------------
+
+    ui->tableView_Calibration
+        ->horizontalHeader()
+        ->setSectionResizeMode(
+            QHeaderView::Stretch);
+
+    // -------------------------------------------------
+    // Row height
+    // -------------------------------------------------
+
+    ui->tableView_Calibration
+        ->verticalHeader()
+        ->setDefaultSectionSize(24);
+
+    ui->stackedWidget->setCurrentWidget(ui->page_calibrationTest);
+}
+
+void MainWindow::on_pushButton_calibrationRun_clicked()
+{
+    // -------------------------------------------------
+    // Safety check
+    // -------------------------------------------------
+
+    if (!test)
+        return;
+
+    // -------------------------------------------------
+    // Calibration slots
+    // 30 slots
+    // 1 ... 29, 31
+    // -------------------------------------------------
+
+    m_calibrationSlots.clear();
+
+    for (quint8 slot = 1; slot <= 29; ++slot)
+    {
+        m_calibrationSlots.append(slot);
+    }
+
+    m_calibrationSlots.append(31);
+
+    // -------------------------------------------------
+    // Reset calibration state
+    // -------------------------------------------------
+
+    m_currentCalibrationSlotIndex = 0;
+    m_calibrationRunning = true;
+
+    // -------------------------------------------------
+    // Clear previous calibration values
+    // -------------------------------------------------
+
+    if (m_calibrationModel)
+    {
+        for (int row = 0;
+             row < 1920;
+             ++row)
+        {
+            m_calibrationModel
+                ->setData(
+                    m_calibrationModel->index(row, 2),
+                    "");
+        }
+    }
+
+    // -------------------------------------------------
+    // Start first slot
+    // -------------------------------------------------
+
+    quint8 slotNumber =
+        m_calibrationSlots[
+            m_currentCalibrationSlotIndex];
+
+    test->startCalibration(slotNumber);
+}
+
+void MainWindow::on_pushButton_calibrationBack_clicked()
+{
+    ui->stackedWidget->setCurrentWidget(ui->page_testPage);
 }

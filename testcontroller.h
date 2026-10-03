@@ -66,12 +66,18 @@ public:
     //Self Test
     void startSelfTest();
 
+    //Calibration Test
+    void startCalibration(quint8 slotNumber);
+
     inline void pauseFor(int milliseconds) {
         QEventLoop loop;
         QTimer::singleShot(milliseconds, &loop, &QEventLoop::quit);  // After delay, quit the event loop
         loop.exec();  // Start the event loop and wait for it to quit
         QApplication::processEvents();  // Keep UI healthy
     }
+
+    //Abort Command
+    void abortCommand();
 
 private slots:
     void onReadyRead();
@@ -87,6 +93,8 @@ signals:
 
     //Self Test Signals
 
+    void selfTestSlotStarted(int slotNumber);
+
     // One slot response completed
     void selfTestSlotResult(
             int slotNumber,
@@ -95,6 +103,7 @@ signals:
     // All 30 slot responses completed
     void selfTestResultsCompleted(
             const QByteArray &allResults);
+
 
 private:
     QSerialPort *serial;
@@ -134,6 +143,12 @@ private:
     bool m_selfTestRunning = false;
 
     QByteArray resultsOfSelfTestBytes;
+
+    //Calibration Test
+    QVector<quint8> m_calibrationSlots;
+    int m_currentCalibrationSlotIndex = -1;
+    bool m_calibrationRunning = false;
+    //continue from here ...
 };
 
 #endif // TESTCONTROLLER_H
