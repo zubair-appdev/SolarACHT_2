@@ -20,6 +20,9 @@
    <iconset resource="images.qrc">
     <normaloff>:/new/prefix1/images/login.png</normaloff>:/new/prefix1/images/login.png</iconset>
   </property>
+  <property name="styleSheet">
+   <string notr="true"/>
+  </property>
   <property name="iconSize">
    <size>
     <width>12</width>
@@ -5741,6 +5744,18 @@ QPushButton:disabled {
           </item>
           <item>
            <widget class="QLineEdit" name="lineEdit_calibratedValue"/>
+          </item>
+          <item>
+           <widget class="QPushButton" name="pushButton_setColumnCalibrate">
+            <property name="font">
+             <font>
+              <pointsize>11</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Set</string>
+            </property>
+           </widget>
           </item>
          </layout>
         </item>

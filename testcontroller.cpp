@@ -349,7 +349,7 @@ void TestController::startSelfTest()
             << command.toHex(' ').toUpper();
 }
 
-void TestController::startCalibration(quint8 slotNumber)
+void TestController::startCalibration()
 {
     if (!serial || !serial->isOpen())
     {
@@ -357,9 +357,45 @@ void TestController::startCalibration(quint8 slotNumber)
             nullptr,
             "Calibration Test",
             "Serial port is not connected.");
+
         return;
     }
 
+    // -------------------------------------------------
+    // Calibration slot sequence
+    // 1 ... 29, 31
+    // -------------------------------------------------
+
+    m_calibrationSlots.clear();
+
+    for (quint8 slot = 1; slot <= 29; ++slot)
+    {
+        m_calibrationSlots.append(slot);
+    }
+
+    m_calibrationSlots.append(31);
+
+    // -------------------------------------------------
+    // Reset state
+    // -------------------------------------------------
+
+    m_currentCalibrationSlotIndex = 0;
+    m_calibrationRunning = true;
+
+    buffer.clear();
+
+    // -------------------------------------------------
+    // Send first slot
+    // -------------------------------------------------
+
+    sendCalibrationSlot(
+        m_calibrationSlots[
+                m_currentCalibrationSlotIndex]);
+}
+
+void TestController::sendCalibrationSlot(
+    quint8 slotNumber)
+{
     QByteArray command;
 
     command.append(0x53);
@@ -377,8 +413,175 @@ void TestController::startCalibration(quint8 slotNumber)
 
     serial->write(command);
 
+    emit executeWriteToNotes(
+           QString("Calibration TX: %1")
+               .arg(QString::fromLatin1(
+                   command.toHex(' ').toUpper())));
+
     qDebug() << "Calibration TX:"
              << command.toHex(' ').toUpper();
+}
+
+void TestController::sendNextCalibrationSlot()
+{
+    m_currentCalibrationSlotIndex++;
+
+    // =================================================
+    // ALL 30 SLOTS COMPLETED
+    // =================================================
+
+    if (m_currentCalibrationSlotIndex >=
+        m_calibrationSlots.size())
+    {
+        m_calibrationRunning = false;
+
+        qDebug() << "Calibration:"
+                 << "All 30 slots completed.";
+
+        emit executeWriteToNotes(
+            "Calibration Data Received - "
+            "All 30 Slots Completed");
+
+        emit calibrationCompleted();
+
+        return;
+    }
+
+    // =================================================
+    // SEND NEXT SLOT
+    // =================================================
+
+    const quint8 nextSlot =
+        m_calibrationSlots[
+            m_currentCalibrationSlotIndex];
+
+    qDebug() << "Calibration:"
+             << "Sending next slot"
+             << nextSlot;
+
+    emit executeWriteToNotes(
+        QString("Calibration TX Slot %1")
+            .arg(static_cast<int>(nextSlot)));
+
+    sendCalibrationSlot(nextSlot);
+}
+
+void TestController::handleCalibrationReception()
+{
+    const QByteArray endMarker =
+        QByteArray::fromHex("4142434445");
+
+    const QByteArray missingSlot =
+        QByteArray::fromHex("24242424");
+
+    if (m_currentCalibrationSlotIndex < 0 ||
+        m_currentCalibrationSlotIndex >=
+            m_calibrationSlots.size())
+    {
+        qDebug() << "Calibration ERROR:"
+                 << "Invalid slot index.";
+
+        return;
+    }
+
+    const quint8 currentSlot =
+        m_calibrationSlots[
+            m_currentCalibrationSlotIndex];
+
+    // =================================================
+    // SLOT MISS
+    // =================================================
+
+    if (buffer.size() >= missingSlot.size() &&
+        buffer.left(missingSlot.size()) == missingSlot)
+    {
+        buffer.remove(
+            0,
+            missingSlot.size());
+
+        qDebug() << "Calibration RX Slot"
+                 << currentSlot
+                 << ": SLOT MISS";
+
+        emit executeWriteToNotes(
+            QString("Calibration RX Slot %1 : SLOT MISS")
+                .arg(static_cast<int>(currentSlot)));
+
+        emit calibrationSlotMissing(
+            static_cast<int>(currentSlot));
+
+        pauseFor(800);
+        sendNextCalibrationSlot();
+
+        return;
+    }
+
+    // =================================================
+    // NORMAL SLOT
+    // =================================================
+
+    const int endIndex =
+        buffer.indexOf(endMarker);
+
+    if (endIndex < 0)
+    {
+        // Incomplete RX.
+        // Keep waiting for more serial data.
+        return;
+    }
+
+    QByteArray slotData =
+        buffer.left(endIndex);
+
+    buffer.remove(
+        0,
+        endIndex + endMarker.size());
+
+    // =================================================
+    // Verify 64 FLOATS
+    // =================================================
+
+    if (slotData.size() != 256)
+    {
+        qDebug() << "Calibration ERROR:"
+                 << "Slot" << currentSlot
+                 << "expected 256 bytes, received"
+                 << slotData.size();
+
+        emit executeWriteToNotes(
+            QString(
+                "Calibration ERROR Slot %1 : "
+                "Expected 256 bytes, received %2")
+                .arg(static_cast<int>(currentSlot))
+                .arg(slotData.size()));
+
+        return;
+    }
+
+    // =================================================
+    // COMPLETE SLOT RECEIVED
+    // =================================================
+
+    qDebug() << "Calibration RX Slot"
+             << currentSlot
+             << ": 256 bytes received";
+
+    emit executeWriteToNotes(
+        QString(
+            "Calibration RX Slot %1 : "
+            "256 bytes received")
+            .arg(static_cast<int>(currentSlot)));
+
+    emit calibrationSlotReceived(
+        static_cast<int>(currentSlot),
+        slotData);
+
+    // =================================================
+    // NEXT SLOT
+    // =================================================
+
+    pauseFor(800);
+    sendNextCalibrationSlot();
 }
 
 void TestController::abortCommand()
@@ -390,6 +593,11 @@ void TestController::abortCommand()
     m_selfTestRunning = false;
     m_currentSelfTestSlotIndex = -1;
     m_selfTestSlots.clear();
+
+    // Stop Calibration
+    m_calibrationRunning = false;
+    m_currentCalibrationSlotIndex = -1;
+    m_calibrationSlots.clear();
 
     // Stop Two Wire
     m_receivingTwoWireResults = false;
@@ -415,6 +623,14 @@ void TestController::onReadyRead()
 
     qDebug() << "RX BUFFER:"
              << buffer.toHex(' ').toUpper();
+
+    // Calibration Test Start
+    if (m_calibrationRunning)
+    {
+        handleCalibrationReception();
+        return;
+    }
+    // Calibration Test End
 
     // =====================================================
     // SELF TEST RECEPTION START

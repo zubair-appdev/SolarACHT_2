@@ -67,7 +67,15 @@ public:
     void startSelfTest();
 
     //Calibration Test
-    void startCalibration(quint8 slotNumber);
+    void startCalibration();
+    void sendCalibrationSlot(quint8 slotNumber);
+    void sendNextCalibrationSlot();
+    void handleCalibrationReception();
+
+    int calibrationSlotIndex() const
+    {
+        return m_currentCalibrationSlotIndex;
+    }
 
     inline void pauseFor(int milliseconds) {
         QEventLoop loop;
@@ -103,6 +111,16 @@ signals:
     // All 30 slot responses completed
     void selfTestResultsCompleted(
             const QByteArray &allResults);
+
+    //Calibration Test
+    void calibrationSlotReceived(
+            int slotNumber,
+            const QByteArray &slotData);
+
+    void calibrationSlotMissing(
+            int slotNumber);
+
+    void calibrationCompleted();
 
 
 private:
@@ -148,7 +166,6 @@ private:
     QVector<quint8> m_calibrationSlots;
     int m_currentCalibrationSlotIndex = -1;
     bool m_calibrationRunning = false;
-    //continue from here ...
 };
 
 #endif // TESTCONTROLLER_H

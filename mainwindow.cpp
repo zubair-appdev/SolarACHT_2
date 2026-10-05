@@ -152,6 +152,22 @@ MainWindow::MainWindow(QWidget *parent)
             this,
             &MainWindow::onSelfTestSlotStarted);
 
+    // Calibration test results signals
+    connect(test,
+            &TestController::calibrationSlotReceived,
+            this,
+            &MainWindow::onCalibrationSlotReceived);
+
+    connect(test,
+            &TestController::calibrationSlotMissing,
+            this,
+            &MainWindow::onCalibrationSlotMissing);
+
+    connect(test,
+            &TestController::calibrationCompleted,
+            this,
+            &MainWindow::onCalibrationCompleted);
+
 }
 MainWindow::~MainWindow()
 {
@@ -2986,7 +3002,160 @@ void MainWindow::onSelfTestSlotStarted(int slotNumber)
 
     textEdit->append(
         QString("SLOT %1 Testing...")
-        .arg(slotNumber));
+                .arg(slotNumber));
+}
+
+void MainWindow::onCalibrationSlotReceived(
+    int slotNumber,
+    const QByteArray &slotData)
+{
+    qDebug() << "Calibration Slot"
+             << slotNumber
+             << "received:"
+             << slotData.size()
+             << "bytes";
+
+    if (slotData.size() != 256)
+    {
+        qDebug() << "Calibration ERROR:"
+                 << "Invalid slot data size.";
+
+        writeToNotes(
+            QString("Calibration Slot %1 : Invalid data")
+                .arg(slotNumber));
+
+        return;
+    }
+
+    /*
+     * Each slot contains 64 float values.
+     * 4 bytes per float.
+     *
+     * Slot sequence:
+     * 1  -> rows   0 - 63
+     * 2  -> rows  64 - 127
+     * ...
+     * 29 -> rows 1792 - 1855
+     * 31 -> rows 1856 - 1919
+     */
+
+    int slotIndex =
+        test->calibrationSlotIndex();
+
+    int startRow =
+        slotIndex * 64;
+
+    for (int i = 0; i < 64; ++i)
+    {
+        int byteOffset = i * 4;
+        int row = startRow + i;
+
+        float value =
+            calibrationBytesToFloat(
+                slotData,
+                byteOffset);
+
+        m_calibrationModel->setItem(
+            row,
+            2,
+            new QStandardItem(
+                QString::number(
+                    value,
+                    'f',
+                    6)));
+
+        qDebug() << "Calibration"
+                 << "Slot:" << slotNumber
+                 << "Index:" << i
+                 << "Row:" << row
+                 << "Value:" << value;
+    }
+
+    // Scroll to the latest received values
+      ui->tableView_Calibration
+          ->scrollTo(
+              m_calibrationModel->index(
+                  startRow + 63,
+                  2),
+              QAbstractItemView::PositionAtBottom);
+
+      writeToNotes(
+          QString("Calibration Slot %1 received - 64 values")
+              .arg(slotNumber));
+}
+
+void MainWindow::onCalibrationSlotMissing(
+    int slotNumber)
+{
+    qDebug() << "Calibration Slot"
+             << slotNumber
+             << "SLOT MISS";
+
+    int slotIndex =
+        test->calibrationSlotIndex();
+
+    int startRow =
+        slotIndex * 64;
+
+    for (int i = 0; i < 64; ++i)
+    {
+        int row = startRow + i;
+
+        m_calibrationModel->setItem(
+            row,
+            2,
+            new QStandardItem("SLOT MISS"));
+    }
+
+    // Scroll to the latest received values
+      ui->tableView_Calibration
+          ->scrollTo(
+              m_calibrationModel->index(
+                  startRow + 63,
+                  2),
+              QAbstractItemView::PositionAtBottom);
+
+    writeToNotes(
+        QString("Calibration Slot %1 : SLOT MISS")
+            .arg(slotNumber));
+}
+
+void MainWindow::onCalibrationCompleted()
+{
+    qDebug() << "Calibration Data Received";
+
+    writeToNotes(
+        "Calibration Data Received - "
+        "All 30 Slots Completed");
+
+    // Return table to first row
+     ui->tableView_Calibration
+         ->scrollTo(
+             m_calibrationModel->index(0, 0),
+             QAbstractItemView::PositionAtTop);
+
+
+    QMessageBox::information(
+        this,
+        "Calibration Test",
+                "Calibration data received successfully.");
+}
+
+float MainWindow::calibrationBytesToFloat(
+    const QByteArray &data,
+    int offset)
+{
+    quint32 bits =
+        (static_cast<quint8>(data[offset + 3]) << 24) |
+        (static_cast<quint8>(data[offset + 2]) << 16) |
+        (static_cast<quint8>(data[offset + 1]) << 8)  |
+         static_cast<quint8>(data[offset]);
+
+    float value;
+
+    memcpy(&value, &bits, sizeof(value));
+
+    return value;
 }
 
 void MainWindow::onPortSelected(const QString &portName)
@@ -3735,7 +3904,7 @@ void MainWindow::on_pushButton_calibrationTest_clicked()
         {
             "Connector",
             "Pin",
-            "Calibration Value"
+            "Calibration Value (Ω)"
         });
 
     // -------------------------------------------------
@@ -3822,12 +3991,26 @@ void MainWindow::on_pushButton_calibrationTest_clicked()
             ->horizontalHeader()
             ->font();
 
-    headerFont.setPointSize(headerFont.pointSize() + 2);
+    headerFont.setPointSize(13);
     headerFont.setBold(true);
 
     ui->tableView_Calibration
         ->horizontalHeader()
         ->setFont(headerFont);
+
+    // -------------------------------------------------
+    // Table font size
+    // -------------------------------------------------
+
+    QFont tableFont =
+            ui->tableView_Calibration
+            ->font();
+
+    tableFont.setPointSize(13);
+
+    ui->tableView_Calibration
+            ->setFont(tableFont);
+
 
     // -------------------------------------------------
     // Equal column width
@@ -3851,64 +4034,621 @@ void MainWindow::on_pushButton_calibrationTest_clicked()
 
 void MainWindow::on_pushButton_calibrationRun_clicked()
 {
-    // -------------------------------------------------
-    // Safety check
-    // -------------------------------------------------
-
-    if (!test)
-        return;
-
-    // -------------------------------------------------
-    // Calibration slots
-    // 30 slots
-    // 1 ... 29, 31
-    // -------------------------------------------------
-
-    m_calibrationSlots.clear();
-
-    for (quint8 slot = 1; slot <= 29; ++slot)
+    // Clear Calibration Value column
+    for (int row = 0;
+         row < m_calibrationModel->rowCount();
+         ++row)
     {
-        m_calibrationSlots.append(slot);
+        m_calibrationModel->setItem(
+            row,
+            2,
+            new QStandardItem(""));
     }
 
-    m_calibrationSlots.append(31);
-
-    // -------------------------------------------------
-    // Reset calibration state
-    // -------------------------------------------------
-
-    m_currentCalibrationSlotIndex = 0;
-    m_calibrationRunning = true;
-
-    // -------------------------------------------------
-    // Clear previous calibration values
-    // -------------------------------------------------
-
-    if (m_calibrationModel)
-    {
-        for (int row = 0;
-             row < 1920;
-             ++row)
-        {
-            m_calibrationModel
-                ->setData(
-                    m_calibrationModel->index(row, 2),
-                    "");
-        }
-    }
-
-    // -------------------------------------------------
-    // Start first slot
-    // -------------------------------------------------
-
-    quint8 slotNumber =
-        m_calibrationSlots[
-            m_currentCalibrationSlotIndex];
-
-    test->startCalibration(slotNumber);
+    // Start calibration
+    test->startCalibration();
 }
 
 void MainWindow::on_pushButton_calibrationBack_clicked()
 {
     ui->stackedWidget->setCurrentWidget(ui->page_testPage);
+}
+
+void MainWindow::on_pushButton_calibrationAbort_clicked()
+{
+    test->abortCommand();
+}
+
+void MainWindow::on_pushButton_calibrationSave_clicked()
+{
+    // ---------------------------------------------------------
+    // Check database
+    // ---------------------------------------------------------
+
+    if (!db.isOpen())
+    {
+        QString error =
+                "Calibration Save Failed:\n"
+                "Database is not open.";
+
+        qWarning() << error;
+
+        writeToNotes(error);
+
+        QMessageBox::critical(
+            this,
+            "Calibration Save Error",
+            error);
+
+        return;
+    }
+
+    // ---------------------------------------------------------
+    // Create calibration table if it doesn't exist
+    // ---------------------------------------------------------
+
+    QSqlQuery query(db);
+
+    QString createTable =
+            "CREATE TABLE IF NOT EXISTS calibrationData ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "connector INTEGER NOT NULL, "
+            "pin INTEGER NOT NULL, "
+            "calibrationValue TEXT NOT NULL)";
+
+    if (!query.exec(createTable))
+    {
+        QString error =
+                "Failed to create calibrationData table:\n"
+                + query.lastError().text();
+
+        qWarning() << error;
+
+        writeToNotes(error);
+
+        QMessageBox::critical(
+            this,
+            "Calibration Save Error",
+            error);
+
+        return;
+    }
+
+    // ---------------------------------------------------------
+    // Start transaction
+    // ---------------------------------------------------------
+
+    if (!db.transaction())
+    {
+        QString error =
+                "Failed to start database transaction:\n"
+                + db.lastError().text();
+
+        qWarning() << error;
+
+        writeToNotes(error);
+
+        QMessageBox::critical(
+            this,
+            "Calibration Save Error",
+            error);
+
+        return;
+    }
+
+    // ---------------------------------------------------------
+    // Delete previous calibration data
+    // ---------------------------------------------------------
+
+    if (!query.exec("DELETE FROM calibrationData"))
+    {
+        QString error =
+                "Failed to clear previous calibration data:\n"
+                + query.lastError().text();
+
+        qWarning() << error;
+
+        writeToNotes(error);
+
+        db.rollback();
+
+        QMessageBox::critical(
+            this,
+            "Calibration Save Error",
+            error);
+
+        return;
+    }
+
+    // ---------------------------------------------------------
+    // Prepare INSERT query
+    // ---------------------------------------------------------
+
+    QSqlQuery insertQuery(db);
+
+    insertQuery.prepare(
+        "INSERT INTO calibrationData "
+        "(connector, pin, calibrationValue) "
+        "VALUES (:connector, :pin, :calibrationValue)");
+
+    // ---------------------------------------------------------
+    // Insert all calibration rows
+    // ---------------------------------------------------------
+
+    for (int row = 0;
+         row < m_calibrationModel->rowCount();
+         ++row)
+    {
+        QString connectorText =
+                m_calibrationModel
+                ->item(row, 0)
+                ->text();
+
+        QString pinText =
+                m_calibrationModel
+                ->item(row, 1)
+                ->text();
+
+        QString valueText =
+                m_calibrationModel
+                ->item(row, 2)
+                ->text();
+
+        insertQuery.bindValue(
+            ":connector",
+            connectorText.toInt());
+
+        insertQuery.bindValue(
+            ":pin",
+            pinText.toInt());
+
+        // Can contain either:
+        // numeric value OR "SLOT MISS"
+        insertQuery.bindValue(
+            ":calibrationValue",
+            valueText);
+
+        if (!insertQuery.exec())
+        {
+            QString error =
+                    QString(
+                        "Failed to save calibration data.\n"
+                        "Row: %1\n"
+                        "Connector: %2\n"
+                        "Pin: %3\n"
+                        "Value: %4\n\n"
+                        "Database Error:\n%5")
+                    .arg(row + 1)
+                    .arg(connectorText)
+                    .arg(pinText)
+                    .arg(valueText)
+                    .arg(insertQuery.lastError().text());
+
+            qWarning() << error;
+
+            writeToNotes(error);
+
+            db.rollback();
+
+            QMessageBox::critical(
+                this,
+                "Calibration Save Error",
+                error);
+
+            return;
+        }
+    }
+
+    // ---------------------------------------------------------
+    // Commit transaction
+    // ---------------------------------------------------------
+
+    if (!db.commit())
+    {
+        QString error =
+                "Failed to commit calibration data:\n"
+                + db.lastError().text();
+
+        qWarning() << error;
+
+        writeToNotes(error);
+
+        QMessageBox::critical(
+            this,
+            "Calibration Save Error",
+            error);
+
+        return;
+    }
+
+    // ---------------------------------------------------------
+    // Success
+    // ---------------------------------------------------------
+
+    qDebug() << "Calibration data saved successfully."
+             << "Rows:" << m_calibrationModel->rowCount();
+
+    writeToNotes(
+        QString(
+            "Calibration data saved successfully. "
+            "Total rows: %1")
+        .arg(m_calibrationModel->rowCount()));
+
+    QMessageBox::information(
+        this,
+        "Calibration Save",
+        QString(
+            "Calibration data saved successfully.\n\n"
+            "Total rows saved: %1")
+        .arg(m_calibrationModel->rowCount()));
+}
+
+void MainWindow::on_pushButton_calibrationView_clicked()
+{
+    // ---------------------------------------------------------
+    // Check database
+    // ---------------------------------------------------------
+
+    if (!db.isOpen())
+    {
+        QString error =
+                "Calibration View Failed:\n"
+                "Database is not open.";
+
+        qWarning() << error;
+
+        writeToNotes(error);
+
+        QMessageBox::critical(
+            this,
+            "Calibration View Error",
+            error);
+
+        return;
+    }
+
+    // ---------------------------------------------------------
+    // Check calibration table
+    // ---------------------------------------------------------
+
+    QSqlQuery query(db);
+
+    QString checkTable =
+            "SELECT name FROM sqlite_master "
+            "WHERE type='table' "
+            "AND name='calibrationData'";
+
+    if (!query.exec(checkTable))
+    {
+        QString error =
+                "Failed to check calibration table:\n"
+                + query.lastError().text();
+
+        qWarning() << error;
+
+        writeToNotes(error);
+
+        QMessageBox::critical(
+            this,
+            "Calibration View Error",
+            error);
+
+        return;
+    }
+
+    if (!query.next())
+    {
+        QString error =
+                "Calibration data table does not exist.";
+
+        qWarning() << error;
+
+        writeToNotes(error);
+
+        QMessageBox::warning(
+            this,
+            "Calibration Data",
+            error);
+
+        return;
+    }
+
+    // ---------------------------------------------------------
+    // Fetch calibration data
+    // ---------------------------------------------------------
+
+    if (!query.exec(
+            "SELECT connector, pin, calibrationValue "
+            "FROM calibrationData "
+            "ORDER BY connector, pin"))
+    {
+        QString error =
+                "Failed to fetch calibration data:\n"
+                + query.lastError().text();
+
+        qWarning() << error;
+
+        writeToNotes(error);
+
+        QMessageBox::critical(
+            this,
+            "Calibration View Error",
+            error);
+
+        return;
+    }
+
+    // ---------------------------------------------------------
+    // Create model
+    // ---------------------------------------------------------
+
+    m_calibrationModel =
+            new QStandardItemModel(
+                this);
+
+    m_calibrationModel
+        ->setHorizontalHeaderLabels(
+            {
+                "Connector",
+                "Pin",
+                "Calibration Value (Ω)"
+            });
+
+    // ---------------------------------------------------------
+    // Fill model
+    // ---------------------------------------------------------
+
+    int row = 0;
+
+    while (query.next())
+    {
+        QString connector =
+                query.value("connector").toString();
+
+        QString pin =
+                query.value("pin").toString();
+
+        QString calibrationValue =
+                query.value("calibrationValue").toString();
+
+        m_calibrationModel->setItem(
+            row,
+            0,
+            new QStandardItem(connector));
+
+        m_calibrationModel->setItem(
+            row,
+            1,
+            new QStandardItem(pin));
+
+        m_calibrationModel->setItem(
+            row,
+            2,
+            new QStandardItem(calibrationValue));
+
+        ++row;
+    }
+
+    // ---------------------------------------------------------
+    // Check if data exists
+    // ---------------------------------------------------------
+
+    if (row == 0)
+    {
+        QString error =
+                "No calibration data found.";
+
+        qDebug() << error;
+
+        writeToNotes(error);
+
+        QMessageBox::information(
+            this,
+            "Calibration Data",
+            error);
+
+        return;
+    }
+
+    // ---------------------------------------------------------
+    // Configure table
+    // ---------------------------------------------------------
+
+    ui->tableView_Calibration
+        ->setModel(m_calibrationModel);
+
+    ui->tableView_Calibration
+        ->setEditTriggers(
+            QAbstractItemView::NoEditTriggers);
+
+    ui->tableView_Calibration
+        ->setSelectionBehavior(
+            QAbstractItemView::SelectRows);
+
+    ui->tableView_Calibration
+        ->setSelectionMode(
+            QAbstractItemView::SingleSelection);
+
+    ui->tableView_Calibration
+        ->horizontalHeader()
+        ->setSectionResizeMode(
+            QHeaderView::Stretch);
+
+    ui->tableView_Calibration
+        ->verticalHeader()
+        ->setDefaultSectionSize(24);
+
+    // ---------------------------------------------------------
+    // Show first row
+    // ---------------------------------------------------------
+
+    ui->tableView_Calibration
+        ->scrollTo(
+            m_calibrationModel->index(0, 0),
+            QAbstractItemView::PositionAtTop);
+
+    ui->stackedWidget
+        ->setCurrentWidget(
+            ui->page_calibrationTest);
+
+    // ---------------------------------------------------------
+    // Log
+    // ---------------------------------------------------------
+
+    qDebug() << "Calibration data loaded:"
+             << row << "rows";
+
+    writeToNotes(
+        QString(
+            "Calibration data loaded successfully. "
+            "Total rows: %1")
+        .arg(row));
+
+    QMessageBox::information(
+        this,
+        "Calibration Data",
+        QString(
+            "Calibration data loaded successfully.\n\n"
+            "Total rows loaded: %1")
+        .arg(row));}
+
+void MainWindow::on_pushButton_setColumnCalibrate_clicked()
+{
+    // ---------------------------------------------------------
+    // Get value from line edit
+    // ---------------------------------------------------------
+
+    QString valueText =
+            ui->lineEdit_calibratedValue
+            ->text()
+            .trimmed();
+
+    // ---------------------------------------------------------
+    // Check empty value
+    // ---------------------------------------------------------
+
+    if (valueText.isEmpty())
+    {
+        QString error =
+                "Please enter a calibration value.";
+
+        writeToNotes(error);
+
+        QMessageBox::warning(
+            this,
+            "Calibration Value",
+            error);
+
+        return;
+    }
+
+    // ---------------------------------------------------------
+    // Validate integer / float
+    // ---------------------------------------------------------
+
+    bool ok = false;
+
+    double value =
+            valueText.toDouble(&ok);
+
+    if (!ok)
+    {
+        QString error =
+                "Invalid calibration value.\n\n"
+                "Please enter a valid integer or float value.\n\n"
+                "Example: 12, 12.5, 0.25";
+
+        qWarning() << error
+                   << "Entered:" << valueText;
+
+        writeToNotes(
+            QString("Invalid calibration value entered: %1")
+            .arg(valueText));
+
+        QMessageBox::warning(
+            this,
+            "Invalid Calibration Value",
+            error);
+
+        return;
+    }
+
+    // ---------------------------------------------------------
+    // Optional: reject negative values
+    // ---------------------------------------------------------
+
+    if (value < 0)
+    {
+        QString error =
+                "Calibration value cannot be negative.";
+
+        writeToNotes(error);
+
+        QMessageBox::warning(
+            this,
+            "Invalid Calibration Value",
+            error);
+
+        return;
+    }
+
+    // ---------------------------------------------------------
+    // Check calibration table
+    // ---------------------------------------------------------
+
+    if (!m_calibrationModel ||
+        m_calibrationModel->rowCount() == 0)
+    {
+        QString error =
+                "Calibration table is empty.";
+
+        writeToNotes(error);
+
+        QMessageBox::warning(
+            this,
+            "Calibration Value",
+            error);
+
+        return;
+    }
+
+    // ---------------------------------------------------------
+    // Set entire third column
+    // ---------------------------------------------------------
+
+    for (int row = 0;
+         row < m_calibrationModel->rowCount();
+         ++row)
+    {
+        m_calibrationModel->setItem(
+            row,
+            2,
+            new QStandardItem(valueText));
+    }
+
+    // ---------------------------------------------------------
+    // Log
+    // ---------------------------------------------------------
+
+    qDebug() << "Calibration column updated:"
+             << valueText;
+
+    writeToNotes(
+        QString(
+            "Calibration column updated with value: %1 "
+            "(%2 rows)")
+        .arg(valueText)
+        .arg(m_calibrationModel->rowCount()));
+
+    QMessageBox::information(
+        this,
+        "Calibration Value",
+        QString(
+            "Calibration value updated successfully.\n\n"
+            "Value: %1\n"
+            "Rows updated: %2")
+        .arg(valueText)
+        .arg(m_calibrationModel->rowCount()));
+
+    //continue from here ...
 }

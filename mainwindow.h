@@ -223,6 +223,14 @@ private slots:
 
       void on_pushButton_calibrationBack_clicked();
 
+      void on_pushButton_calibrationAbort_clicked();
+
+      void on_pushButton_calibrationSave_clicked();
+
+      void on_pushButton_calibrationView_clicked();
+
+      void on_pushButton_setColumnCalibrate_clicked();
+
 public slots:
 
       void portStatus(const QString &data);
@@ -245,6 +253,20 @@ public slots:
               const QByteArray &allResults);
 
       void onSelfTestSlotStarted(int slotNumber);
+
+      //Calibration Test result slots
+      void onCalibrationSlotReceived(
+              int slotNumber,
+              const QByteArray &slotData);
+
+      void onCalibrationSlotMissing(
+              int slotNumber);
+
+      void onCalibrationCompleted();
+
+      float calibrationBytesToFloat(
+          const QByteArray &data,
+          int offset);
 
 private:
     Ui::MainWindow *ui;
@@ -285,10 +307,6 @@ private:
 
     //Calibration Test
     QStandardItemModel *m_calibrationModel = nullptr;
-
-    QVector<quint8> m_calibrationSlots;
-    int m_currentCalibrationSlotIndex = -1;
-    bool m_calibrationRunning = false;
 
 };
 
