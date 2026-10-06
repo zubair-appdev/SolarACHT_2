@@ -24,6 +24,7 @@ SOURCES += \
     testcontroller.cpp
 
 HEADERS += \
+    CalibrationTableView.h \
     mainwindow.h \
     testcontroller.h
 

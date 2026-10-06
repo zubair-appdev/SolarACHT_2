@@ -56,7 +56,7 @@
     gridline-color: #d9d9d9;</string>
       </property>
       <property name="currentIndex">
-       <number>15</number>
+       <number>13</number>
       </property>
       <widget class="QWidget" name="page">
        <layout class="QGridLayout" name="gridLayout_2">
@@ -5760,7 +5760,7 @@ QPushButton:disabled {
          </layout>
         </item>
         <item row="1" column="0">
-         <widget class="QTableView" name="tableView_Calibration">
+         <widget class="CalibrationTableView" name="tableView_Calibration">
           <property name="styleSheet">
            <string notr="true">QScrollBar:vertical
 {
@@ -5841,6 +5841,18 @@ QScrollBar::sub-page:horizontal
            </widget>
           </item>
           <item>
+           <widget class="QPushButton" name="pushButton_editCalibration">
+            <property name="font">
+             <font>
+              <pointsize>11</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Edit</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QPushButton" name="pushButton_calibrationSave">
             <property name="font">
              <font>
@@ -5908,6 +5920,13 @@ QScrollBar::sub-page:horizontal
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>CalibrationTableView</class>
+   <extends>QTableView</extends>
+   <header>calibrationtableview.h</header>
+  </customwidget>
+ </customwidgets>
  <resources>
   <include location="images.qrc"/>
  </resources>

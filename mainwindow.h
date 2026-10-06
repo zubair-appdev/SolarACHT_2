@@ -231,6 +231,10 @@ private slots:
 
       void on_pushButton_setColumnCalibrate_clicked();
 
+      void on_pushButton_editCalibration_clicked();
+
+      void on_pushButton_saveTwoWirePdf_clicked();
+
 public slots:
 
       void portStatus(const QString &data);

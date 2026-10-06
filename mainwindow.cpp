@@ -1009,7 +1009,7 @@ bool MainWindow::processCsvFile(const QString &fileName,
                 return false;
 
             //-------------------------------------------------
-            // Convert Logical TP(1-16) -> Physical TP(1-32)
+            // Convert Logical TP(1-16) -> Physical TP (Edge Case TP15 -> 29,31 HANDLED)
             //-------------------------------------------------
 
             int tpNo = pCon.section('-', 1).toInt();
@@ -1021,7 +1021,17 @@ bool MainWindow::processCsvFile(const QString &fileName,
             }
             else
             {
-                tpNo = tpNo * 2;
+                if (tpNo == 15)
+                {
+                    // TP15 has SLOT 29 and SLOT 31.
+                    // SLOT 30 is physically missing.
+                    tpNo = 31;
+                }
+                else
+                {
+                    tpNo = tpNo * 2;
+                }
+
                 pPin -= 64;
             }
 
@@ -1594,12 +1604,22 @@ void MainWindow::loadPatchTable(const QString &tableName)
 
             if(col == 4)       // Patch Con
             {
-                int tpNo = value.section('-',1).toInt();
+                int tpNo = value.section('-', 1).toInt();
 
-                if(tpNo % 2)
+                // Special case:
+                // TP-31 is the second half of logical TP-15
+                if(tpNo == 31)
+                {
+                    tpNo = 15;
+                }
+                else if(tpNo % 2)
+                {
                     tpNo = (tpNo + 1) / 2;
+                }
                 else
+                {
                     tpNo /= 2;
+                }
 
                 value = QString("TP-%1").arg(tpNo);
             }
@@ -1607,11 +1627,20 @@ void MainWindow::loadPatchTable(const QString &tableName)
             {
                 int pin = value.toInt();
 
-                QString dbCon = patchModel->index(row,4).data().toString();
-                int tpNo = dbCon.section('-',1).toInt();
+                QString dbCon =
+                        patchModel->index(row, 4)
+                        .data()
+                        .toString();
 
-                if(tpNo % 2 == 0)
+                int tpNo =
+                        dbCon.section('-', 1).toInt();
+
+                // Even physical TP = second half
+                // TP-31 is also the second half of TP-15
+                if(tpNo % 2 == 0 || tpNo == 31)
+                {
                     pin += 64;
+                }
 
                 value = QString::number(pin);
             }
@@ -2171,34 +2200,145 @@ void MainWindow::processTwoWireResults()
                 results[row];
 
         // =============================================
-        // Convert measured value to readable format
+        // Get calibration values
+        // =============================================
+
+        int sourceConnector =
+                test->get_k_SourceCon()[row]
+                .section('-', 1)
+                .toInt();
+
+        int sourcePin =
+                test->get_k_SourcePin()[row]
+                .toInt();
+
+        int destinationConnector =
+                test->get_k_DestinationCon()[row]
+                .section('-', 1)
+                .toInt();
+
+        int destinationPin =
+                test->get_k_DestinationPin()[row]
+                .toInt();
+
+        double sourceCalibration = 0.0;
+        double destinationCalibration = 0.0;
+
+        QSqlQuery calibrationQuery(db);
+
+        // Source
+        calibrationQuery.prepare(
+            "SELECT calibrationValue "
+            "FROM calibrationData "
+            "WHERE connector = :connector "
+            "AND pin = :pin");
+
+        calibrationQuery.bindValue(
+            ":connector",
+            sourceConnector);
+
+        calibrationQuery.bindValue(
+            ":pin",
+            sourcePin);
+
+        if (calibrationQuery.exec() &&
+            calibrationQuery.next())
+        {
+            QString value =
+                    calibrationQuery.value(
+                        "calibrationValue")
+                    .toString()
+                    .trimmed();
+
+            if (value != "SLOT MISS")
+            {
+                sourceCalibration =
+                        value.toDouble();
+            }
+        }
+
+        // Destination
+        calibrationQuery.finish();
+
+        calibrationQuery.bindValue(
+            ":connector",
+            destinationConnector);
+
+        calibrationQuery.bindValue(
+            ":pin",
+            destinationPin);
+
+        if (calibrationQuery.exec() &&
+            calibrationQuery.next())
+        {
+            QString value =
+                    calibrationQuery.value(
+                        "calibrationValue")
+                    .toString()
+                    .trimmed();
+
+            if (value != "SLOT MISS")
+            {
+                destinationCalibration =
+                        value.toDouble();
+            }
+        }
+
+        // =============================================
+        // Calibration Formula
+        // =============================================
+
+        float convertedMeasuredOhms =
+                measuredOhms
+                - (sourceCalibration +
+                   destinationCalibration);
+
+        // =============================================
+        // Log calibration calculation
+        // =============================================
+
+        writeToNotes(
+            QString(
+                "Two Wire Result %1 | "
+                "HW Measured: %2 Ω | "
+                "SRC Calibration: %3 Ω | "
+                "DST Calibration: %4 Ω | "
+                "Converted: %5 Ω")
+            .arg(row + 1)
+            .arg(measuredOhms, 0, 'f', 6)
+            .arg(sourceCalibration, 0, 'f', 6)
+            .arg(destinationCalibration, 0, 'f', 6)
+            .arg(convertedMeasuredOhms, 0, 'f', 6));
+
+        // =============================================
+        // Convert calibrated measured value to readable format
         // =============================================
 
         QString measuredText;
 
-        if (qAbs(measuredOhms) >= 1000000000.0)
+        if (qAbs(convertedMeasuredOhms) >= 1000000000.0)
         {
             measuredText =
                     QString::number(
-                        measuredOhms / 1000000000.0,
+                        convertedMeasuredOhms / 1000000000.0,
                         'f',
                         3)
                     + "GΩ";
         }
-        else if (qAbs(measuredOhms) >= 1000000.0)
+        else if (qAbs(convertedMeasuredOhms) >= 1000000.0)
         {
             measuredText =
                     QString::number(
-                        measuredOhms / 1000000.0,
+                        convertedMeasuredOhms / 1000000.0,
                         'f',
                         3)
                     + "MΩ";
         }
-        else if (qAbs(measuredOhms) >= 1000.0)
+        else if (qAbs(convertedMeasuredOhms) >= 1000.0)
         {
             measuredText =
                     QString::number(
-                        measuredOhms / 1000.0,
+                        convertedMeasuredOhms / 1000.0,
                         'f',
                         3)
                     + "KΩ";
@@ -2207,7 +2347,7 @@ void MainWindow::processTwoWireResults()
         {
             measuredText =
                     QString::number(
-                        measuredOhms,
+                        convertedMeasuredOhms,
                         'f',
                         3)
                     + "Ω";
@@ -2297,6 +2437,10 @@ void MainWindow::processTwoWireResults()
                     m_twoWireTestModel->index(row, 9),
                     remarks);
     }
+
+    ui->tableView_twoWireTest->scrollTo(
+                m_twoWireTestModel->index(0,0),
+                QAbstractItemView::PositionAtTop);
 
     writeToNotes(
         QString("Two Wire comparison completed. "
@@ -3135,10 +3279,19 @@ void MainWindow::onCalibrationCompleted()
              QAbstractItemView::PositionAtTop);
 
 
-    QMessageBox::information(
-        this,
-        "Calibration Test",
-                "Calibration data received successfully.");
+     QMessageBox::StandardButton reply =
+             QMessageBox::question(
+                 this,
+                 "Calibration Test",
+                 "Calibration Test Completed Successfully.\n\n"
+                 "Do you want to save the calibration data in the database?",
+                 QMessageBox::Yes |
+                 QMessageBox::No);
+
+     if (reply == QMessageBox::Yes)
+     {
+         on_pushButton_calibrationSave_clicked();
+     }
 }
 
 float MainWindow::calibrationBytesToFloat(
@@ -3799,6 +3952,12 @@ void MainWindow::on_pushButton_delHarnessRow_clicked()
 
 void MainWindow::on_pushButton_backFromTwoWireTest_clicked()
 {
+    if(test->isTwoWireTestRunning())
+    {
+        QMessageBox::warning(this,"Two Wire Test","Please wait two wire test is running");
+        return;
+    }
+
     ui->stackedWidget->setCurrentWidget(ui->page_test);
 }
 
@@ -3810,6 +3969,15 @@ void MainWindow::on_pushButton_selfTest_clicked()
 
 void MainWindow::on_pushButton_selfBack_clicked()
 {
+    if(test->isSelfTestRunning())
+    {
+        QMessageBox::warning(
+            this,
+            "Self Test Running",
+            "Please wait until the self test is completed.");
+        return;
+    }
+
     for (int i = 1; i <= 15; ++i)
     {
         QTextEdit *textEdit =
@@ -3838,6 +4006,15 @@ void MainWindow::on_pushButton_selfRun_clicked()
                     this,
                     "Self Test",
                     "Serial port is not connected.");
+        return;
+    }
+
+    if(test->isSelfTestRunning())
+    {
+        QMessageBox::warning(
+            this,
+            "Self Test Running",
+            "Self test is already running.");
         return;
     }
 
@@ -3876,12 +4053,34 @@ void MainWindow::on_pushButton_selfRun_clicked()
 
 void MainWindow::on_pushButton_selfAbort_clicked()
 {
-    test->abortCommand();
+    QMessageBox::StandardButton reply =
+            QMessageBox::question(
+                this,
+                "Abort Self Test",
+                "Are you sure you want to abort the Self test?",
+                QMessageBox::Yes |
+                QMessageBox::No);
+
+    if (reply == QMessageBox::Yes)
+    {
+        test->abortCommand();
+    }
 }
 
 void MainWindow::on_pushButton_stopTwoWireTest_clicked()
 {
-    test->abortCommand();
+    QMessageBox::StandardButton reply =
+            QMessageBox::question(
+                this,
+                "Abort Two Wire Test",
+                "Are you sure you want to abort the Two Wire test?",
+                QMessageBox::Yes |
+                QMessageBox::No);
+
+    if (reply == QMessageBox::Yes)
+    {
+        test->abortCommand();
+    }
 }
 
 void MainWindow::on_pushButton_calibrationTest_clicked()
@@ -4034,6 +4233,15 @@ void MainWindow::on_pushButton_calibrationTest_clicked()
 
 void MainWindow::on_pushButton_calibrationRun_clicked()
 {
+    if (test->isCalibrationRunning())
+       {
+           QMessageBox::warning(
+               this,
+               "Calibration Test Running",
+               "Calibration test is already running.");
+           return;
+       }
+
     // Clear Calibration Value column
     for (int row = 0;
          row < m_calibrationModel->rowCount();
@@ -4051,16 +4259,46 @@ void MainWindow::on_pushButton_calibrationRun_clicked()
 
 void MainWindow::on_pushButton_calibrationBack_clicked()
 {
+    if (test->isCalibrationRunning())
+       {
+           QMessageBox::warning(
+               this,
+               "Calibration Test Running",
+               "Please wait until the calibration test is completed.");
+           return;
+       }
+
+    ui->lineEdit_calibratedValue->clear();
     ui->stackedWidget->setCurrentWidget(ui->page_testPage);
 }
 
 void MainWindow::on_pushButton_calibrationAbort_clicked()
 {
-    test->abortCommand();
+    QMessageBox::StandardButton reply =
+            QMessageBox::question(
+                this,
+                "Abort Calibration",
+                "Are you sure you want to abort the calibration test?",
+                QMessageBox::Yes |
+                QMessageBox::No);
+
+    if (reply == QMessageBox::Yes)
+    {
+        test->abortCommand();
+    }
 }
 
 void MainWindow::on_pushButton_calibrationSave_clicked()
 {
+    if (test->isCalibrationRunning())
+       {
+           QMessageBox::warning(
+               this,
+               "Calibration Test Running",
+               "Please wait until the calibration test is completed.");
+           return;
+       }
+
     // ---------------------------------------------------------
     // Check database
     // ---------------------------------------------------------
@@ -4194,13 +4432,67 @@ void MainWindow::on_pushButton_calibrationSave_clicked()
                 ->item(row, 2)
                 ->text();
 
+        // ---------------------------------------------------------
+        // User representation -> Hardware representation
+        // ---------------------------------------------------------
+
+        int logicalConnector = connectorText.toInt();
+        int logicalPin = pinText.toInt();
+
+        int dbConnector;
+        int dbPin;
+
+        if (logicalPin <= 64)
+        {
+            // First half
+            //
+            // TP1  -> TP1
+            // TP2  -> TP3
+            // ...
+            // TP15 -> TP29
+
+            dbConnector =
+                    (logicalConnector * 2) - 1;
+
+            dbPin = logicalPin;
+        }
+        else
+        {
+            // Second half
+            //
+            // TP1  -> TP2
+            // TP2  -> TP4
+            // ...
+            // TP14 -> TP28
+            //
+            // Special:
+            // TP15 second half -> TP31
+            // because SLOT 30 is missing.
+
+            if (logicalConnector == 15)
+            {
+                dbConnector = 31;
+            }
+            else
+            {
+                dbConnector =
+                        logicalConnector * 2;
+            }
+
+            dbPin = logicalPin - 64;
+        }
+
+        // ---------------------------------------------------------
+        // Insert hardware representation into DB
+        // ---------------------------------------------------------
+
         insertQuery.bindValue(
             ":connector",
-            connectorText.toInt());
+            dbConnector);
 
         insertQuery.bindValue(
             ":pin",
-            pinText.toInt());
+            dbPin);
 
         // Can contain either:
         // numeric value OR "SLOT MISS"
@@ -4214,13 +4506,17 @@ void MainWindow::on_pushButton_calibrationSave_clicked()
                     QString(
                         "Failed to save calibration data.\n"
                         "Row: %1\n"
-                        "Connector: %2\n"
-                        "Pin: %3\n"
-                        "Value: %4\n\n"
-                        "Database Error:\n%5")
+                        "User Connector: %2\n"
+                        "User Pin: %3\n"
+                        "DB Connector: %4\n"
+                        "DB Pin: %5\n"
+                        "Value: %6\n\n"
+                        "Database Error:\n%7")
                     .arg(row + 1)
-                    .arg(connectorText)
-                    .arg(pinText)
+                    .arg(logicalConnector)
+                    .arg(logicalPin)
+                    .arg(dbConnector)
+                    .arg(dbPin)
                     .arg(valueText)
                     .arg(insertQuery.lastError().text());
 
@@ -4274,6 +4570,18 @@ void MainWindow::on_pushButton_calibrationSave_clicked()
             "Total rows: %1")
         .arg(m_calibrationModel->rowCount()));
 
+    // Save successful
+    ui->tableView_Calibration->setClipboardEnabled(false);
+
+    ui->tableView_Calibration->setEditTriggers(
+        QAbstractItemView::NoEditTriggers);
+
+    ui->tableView_Calibration->setSelectionBehavior(
+        QAbstractItemView::SelectRows);
+
+    ui->tableView_Calibration->setSelectionMode(
+        QAbstractItemView::SingleSelection);
+
     QMessageBox::information(
         this,
         "Calibration Save",
@@ -4285,6 +4593,15 @@ void MainWindow::on_pushButton_calibrationSave_clicked()
 
 void MainWindow::on_pushButton_calibrationView_clicked()
 {
+    if (test->isCalibrationRunning())
+       {
+           QMessageBox::warning(
+               this,
+               "Calibration Test Running",
+               "Please wait until the calibration test is completed.");
+           return;
+       }
+
     // ---------------------------------------------------------
     // Check database
     // ---------------------------------------------------------
@@ -4402,29 +4719,78 @@ void MainWindow::on_pushButton_calibrationView_clicked()
 
     while (query.next())
     {
-        QString connector =
-                query.value("connector").toString();
+        int dbConnector =
+                query.value("connector").toInt();
 
-        QString pin =
-                query.value("pin").toString();
+        int dbPin =
+                query.value("pin").toInt();
 
         QString calibrationValue =
                 query.value("calibrationValue").toString();
 
+        // ---------------------------------------------------------
+        // Hardware representation -> User representation
+        // ---------------------------------------------------------
+
+        int userConnector;
+        int userPin;
+
+        if (dbConnector == 31)
+        {
+            // SLOT 31 is the second half of TP15
+            userConnector = 15;
+            userPin = dbPin + 64;
+        }
+        else if (dbConnector % 2 == 1)
+        {
+            // First half
+            //
+            // TP1  -> User TP1
+            // TP3  -> User TP2
+            // ...
+            // TP29 -> User TP15
+
+            userConnector =
+                    (dbConnector + 1) / 2;
+
+            userPin = dbPin;
+        }
+        else
+        {
+            // Second half
+            //
+            // TP2  -> User TP1
+            // TP4  -> User TP2
+            // ...
+            // TP28 -> User TP14
+
+            userConnector =
+                    dbConnector / 2;
+
+            userPin = dbPin + 64;
+        }
+
+        // ---------------------------------------------------------
+        // Fill user-visible model
+        // ---------------------------------------------------------
+
         m_calibrationModel->setItem(
             row,
             0,
-            new QStandardItem(connector));
+            new QStandardItem(
+                QString::number(userConnector)));
 
         m_calibrationModel->setItem(
             row,
             1,
-            new QStandardItem(pin));
+            new QStandardItem(
+                QString::number(userPin)));
 
         m_calibrationModel->setItem(
             row,
             2,
-            new QStandardItem(calibrationValue));
+            new QStandardItem(
+                calibrationValue));
 
         ++row;
     }
@@ -4510,7 +4876,8 @@ void MainWindow::on_pushButton_calibrationView_clicked()
         QString(
             "Calibration data loaded successfully.\n\n"
             "Total rows loaded: %1")
-        .arg(row));}
+        .arg(row));
+}
 
 void MainWindow::on_pushButton_setColumnCalibrate_clicked()
 {
@@ -4650,5 +5017,40 @@ void MainWindow::on_pushButton_setColumnCalibrate_clicked()
         .arg(valueText)
         .arg(m_calibrationModel->rowCount()));
 
-    //continue from here ...
+}
+
+void MainWindow::on_pushButton_editCalibration_clicked()
+{
+    if (test->isCalibrationRunning())
+    {
+        QMessageBox::warning(
+            this,
+            "Calibration Test Running",
+            "Please wait until the calibration test is completed.");
+
+        return;
+    }
+
+    ui->tableView_Calibration->setClipboardEnabled(true);
+
+    ui->tableView_Calibration->setEditTriggers(
+        QAbstractItemView::DoubleClicked);
+
+    ui->tableView_Calibration->setSelectionBehavior(
+        QAbstractItemView::SelectItems);
+
+    ui->tableView_Calibration->setSelectionMode(
+        QAbstractItemView::ExtendedSelection);
+
+    QMessageBox::information(
+        this,
+        "Calibration Value",
+        "Double click to edit.\n\n"
+        "You can select multiple calibration values "
+        "and use Ctrl+C / Ctrl+V.");
+}
+
+void MainWindow::on_pushButton_saveTwoWirePdf_clicked()
+{
+
 }

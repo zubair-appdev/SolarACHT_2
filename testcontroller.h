@@ -53,6 +53,7 @@ public:
         return exp;
     }
 
+    //Two Wire test ----------------------------
     void startTwoWireTransmission(const QByteArray &startPacket,
                                   const QVector<QByteArray> &packets);
 
@@ -63,10 +64,20 @@ public:
 
     void setTwoWireExpectedResults(int count);
 
-    //Self Test
+    bool isTwoWireTestRunning() const
+    {
+        return m_receivingTwoWireResults;
+    }
+
+    //Self Test --------------------------------
     void startSelfTest();
 
-    //Calibration Test
+    bool isSelfTestRunning() const
+    {
+        return m_selfTestRunning;
+    }
+
+    //Calibration Test -----------------------------
     void startCalibration();
     void sendCalibrationSlot(quint8 slotNumber);
     void sendNextCalibrationSlot();
@@ -75,6 +86,11 @@ public:
     int calibrationSlotIndex() const
     {
         return m_currentCalibrationSlotIndex;
+    }
+
+    bool isCalibrationRunning() const
+    {
+        return m_calibrationRunning;
     }
 
     inline void pauseFor(int milliseconds) {
@@ -95,11 +111,12 @@ signals:
     void portOpening(const QString &);
     void executeWriteToNotes(const QString &dataNotes);
 
+    //Two Wire test Signals -----------------------
     void twoWireResultReceived(float value, int index);
 
     void twoWireResultsCompleted();
 
-    //Self Test Signals
+    //Self Test Signals ----------------------
 
     void selfTestSlotStarted(int slotNumber);
 
@@ -112,7 +129,7 @@ signals:
     void selfTestResultsCompleted(
             const QByteArray &allResults);
 
-    //Calibration Test
+    //Calibration Test Signals---------------------
     void calibrationSlotReceived(
             int slotNumber,
             const QByteArray &slotData);
