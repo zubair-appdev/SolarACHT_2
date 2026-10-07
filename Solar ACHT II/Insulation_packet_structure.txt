@@ -19,7 +19,7 @@ HUMAN READABLE DIVISIONS PART-I
 2f 2f  //Header
 00 00 //Packet No
 02 58 //Packet data length
-00 00 //Loom No
+00 00 //Loom No : updated on 7Oct2026 Loom No Starts with 1
 00 da //Loom Data Length
 00 1b //No Of Nets
 00 00 //Net Number

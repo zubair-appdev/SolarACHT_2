@@ -93,6 +93,17 @@ public:
         return m_calibrationRunning;
     }
 
+    //Insulation Test Packet
+    void sendInsulationStartPacket(
+        quint16 numberOfPackets,
+        quint16 numberOfLooms,
+        float insulationVoltage,
+        float resistanceThreshold,
+        quint8 testBetweenConnectors,
+        const QVector<QByteArray> &packets);
+
+
+
     inline void pauseFor(int milliseconds) {
         QEventLoop loop;
         QTimer::singleShot(milliseconds, &loop, &QEventLoop::quit);  // After delay, quit the event loop
@@ -183,6 +194,17 @@ private:
     QVector<quint8> m_calibrationSlots;
     int m_currentCalibrationSlotIndex = -1;
     bool m_calibrationRunning = false;
+
+    //Insulation Test
+    QVector<QByteArray> m_insulationPackets;
+
+    int m_currentInsulationPacket = 0;
+
+    bool m_waitingForInsulationStartAck = false;
+    bool m_waitingForInsulationPacketAck = false;
+    bool m_receivingInsulationResults = false;
+
+    QVector<float> m_insulationResults;
 };
 
 #endif // TESTCONTROLLER_H

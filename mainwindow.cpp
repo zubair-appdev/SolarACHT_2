@@ -1190,60 +1190,130 @@ bool MainWindow::savePatchToDb(const QString &cableName)
 
     return true;
 }
-bool MainWindow::validateHarnessData(const QVector<QString> &cableTemp,
-                                     const QVector<QString> &sourceConTemp,
-                                     const QVector<QString> &sourcePinTemp,
-                                     const QVector<QString> &destConTemp,
-                                     const QVector<QString> &destPinTemp,
-                                     const QVector<QString> &expTemp)
+
+bool MainWindow::validateHarnessData(
+        const QVector<QString> &cableTemp,
+        const QVector<QString> &sourceConTemp,
+        const QVector<QString> &sourcePinTemp,
+        const QVector<QString> &destConTemp,
+        const QVector<QString> &destPinTemp,
+        const QVector<QString> &expTemp)
 {
-    QVector<QString> sourceMiss, destMiss;
     QString extraLog;
+
+    // =====================================================
+    // Validate Source / Destination against Patch data
+    // =====================================================
+
+    QStringList missingRows;
 
     for (int i = 0; i < sourceConTemp.size(); i++)
     {
-        int matchSrc = 0, matchDst = 0;
+        int matchSrc = 0;
+        int matchDst = 0;
 
-        for (int j = 0; j < userConList.size(); j++) {
+        for (int j = 0; j < userConList.size(); j++)
+        {
             if (sourceConTemp[i] == userConList[j] &&
-                    sourcePinTemp[i] == userPinList[j])
+                sourcePinTemp[i] == userPinList[j])
+            {
                 matchSrc++;
+            }
 
             if (destConTemp[i] == userConList[j] &&
-                    destPinTemp[i] == userPinList[j])
+                destPinTemp[i] == userPinList[j])
+            {
                 matchDst++;
+            }
         }
 
-        if (matchSrc == 0)
-            sourceMiss.append(sourceConTemp[i] + "-" + sourcePinTemp[i]);
+        // -------------------------------------------------
+        // Check missing Source / Destination
+        // -------------------------------------------------
 
-        if (matchDst == 0)
-            destMiss.append(destConTemp[i] + "-" + destPinTemp[i]);
+        if (matchSrc == 0 || matchDst == 0)
+        {
+            QString problem;
+
+            if (matchSrc == 0 && matchDst == 0)
+            {
+                problem =
+                    "Source and Destination not found in Patch data";
+            }
+            else if (matchSrc == 0)
+            {
+                problem =
+                    "Source not found in Patch data";
+            }
+            else
+            {
+                problem =
+                    "Destination not found in Patch data";
+            }
+
+            QString log =
+                QString(
+                    "Row %1 | Cable: %2 | "
+                    "Source: %3 - %4 | "
+                    "Destination: %5 - %6 | "
+                    "%7")
+                .arg(i + 1)
+                .arg(cableTemp[i])
+                .arg(sourceConTemp[i])
+                .arg(sourcePinTemp[i])
+                .arg(destConTemp[i])
+                .arg(destPinTemp[i])
+                .arg(problem);
+
+            missingRows.append(log);
+        }
+
+        // -------------------------------------------------
+        // Extra source / destination checks
+        // -------------------------------------------------
 
         //        if (matchSrc > 1)
-        //            extraLog += QString("⚠ EXTRA source append at index %1: %2-%3\n")
-        //                            .arg(i).arg(sourceConTemp[i]).arg(sourcePinTemp[i]);
+        //            extraLog +=
+        //                QString(
+        //                    "⚠ EXTRA source append at index %1: %2-%3\n")
+        //                .arg(i)
+        //                .arg(sourceConTemp[i])
+        //                .arg(sourcePinTemp[i]);
 
         //        if (matchDst > 1)
-        //            extraLog += QString("⚠ EXTRA destination append at index %1: %2-%3\n")
-        //                            .arg(i).arg(destConTemp[i]).arg(destPinTemp[i]);
+        //            extraLog +=
+        //                QString(
+        //                    "⚠ EXTRA destination append at index %1: %2-%3\n")
+        //                .arg(i)
+        //                .arg(destConTemp[i])
+        //                .arg(destPinTemp[i]);
     }
 
-    if (!extraLog.isEmpty()) {
+    // =====================================================
+    // Extra validation errors
+    // =====================================================
+
+    if (!extraLog.isEmpty())
+    {
         ui->textEdit_ErrorLog->append(extraLog);
         writeToNotes(extraLog);
+
         return false;
     }
 
-    if (!sourceMiss.isEmpty() || !destMiss.isEmpty()) {
-        QString missingLog =
-                "Missing Source: " +
-                QStringList(sourceMiss.begin(), sourceMiss.end()).join(", ") + " | " +
-                "Missing Destination: " +
-                QStringList(destMiss.begin(), destMiss.end()).join(", ");
+    // =====================================================
+    // Missing Source / Destination
+    // =====================================================
 
-        writeToNotes("❌ " + missingLog);
-        ui->textEdit_ErrorLog->append("❌ " + missingLog);
+    if (!missingRows.isEmpty())
+    {
+        QString missingLog =
+            "❌ HARNESS VALIDATION FAILED\n\n" +
+            missingRows.join("\n");
+
+        writeToNotes(missingLog);
+        ui->textEdit_ErrorLog->append(missingLog);
+
         return false;
     }
 
@@ -1267,7 +1337,7 @@ bool MainWindow::validateHarnessData(const QVector<QString> &cableTemp,
     // =====================================================
 
     QRegularExpression expRegex(
-        R"(^(?:[<>][0-9]+[KM]?|[0-9]+[KM]?\s*±\s*[0-9]+[KM]?)$)",
+        R"(^(?:[<>][0-9]+[KM]?|[0-9]+[KM]?\s\*±\s\*[0-9]+[KM]?)$)",
         QRegularExpression::CaseInsensitiveOption);
 
     for (int i = 0; i < expTemp.size(); i++)
@@ -1276,38 +1346,56 @@ bool MainWindow::validateHarnessData(const QVector<QString> &cableTemp,
 
         if (!expRegex.match(v).hasMatch())
         {
-            writeToNotes(QString("Invalid expValue at index %1: %2")
-                             .arg(i).arg(v));
+            writeToNotes(
+                QString(
+                    "Invalid expValue at index %1: %2")
+                .arg(i)
+                .arg(v));
+
             ui->textEdit_ErrorLog->append(
-                "Invalid expValue at index " + QString::number(i) +
-                ": " +v
-            );
+                "Invalid expValue at index " +
+                QString::number(i) +
+                ": " +
+                v);
+
             return false;
         }
     }
 
-    // ---------------------------------------------------------
+    // =====================================================
     // PRINT ALL HARNESS DATA AFTER SUCCESSFUL VALIDATION
-    // ---------------------------------------------------------
-    writeToNotes("######## HARNESS DATA (VALIDATED) ########");
+    // =====================================================
 
-    for (int i = 0; i < sourceConTemp.size(); i++) {
+    writeToNotes(
+        "######## HARNESS DATA (VALIDATED) ########");
 
-        QString log = QString(
-                    "HARNESS Line OK (%1): Cable: %2 , SRC: %3-%4 → DEST: %5-%6 , exp: %7")
-                .arg(i + 1)
-                .arg(cableTemp[i])              // <--- NEW
-                .arg(sourceConTemp[i])
-                .arg(sourcePinTemp[i])
-                .arg(destConTemp[i])
-                .arg(destPinTemp[i])
-                .arg(expTemp[i]);
+    for (int i = 0;
+         i < sourceConTemp.size();
+         i++)
+    {
+        QString log =
+            QString(
+                "HARNESS Line OK (%1): "
+                "Cable: %2 , "
+                "SRC: %3-%4 → "
+                "DEST: %5-%6 , "
+                "exp: %7")
+            .arg(i + 1)
+            .arg(cableTemp[i])
+            .arg(sourceConTemp[i])
+            .arg(sourcePinTemp[i])
+            .arg(destConTemp[i])
+            .arg(destPinTemp[i])
+            .arg(expTemp[i]);
 
         writeToNotes(log);
     }
 
-    writeToNotes("###########################################");
-    writeToNotes("✅ Harness data validated successfully.");
+    writeToNotes(
+        "###########################################");
+
+    writeToNotes(
+        "✅ Harness data validated successfully.");
 
     return true;
 }
@@ -3488,7 +3576,7 @@ void MainWindow::on_pushButton_run_clicked()
 
         //Loom wise net creation
 
-        quint16 loomNumber = 0;
+        quint16 loomNumber = 1;
 
         for(auto it = looms.begin(); it != looms.end(); ++it)
         {
@@ -3773,6 +3861,33 @@ void MainWindow::on_pushButton_run_clicked()
 
         //UART Packet Creation of 1024 ends --------------------------
 
+        //Sending Packet Creation To testcontroller
+        quint16 numberOfPackets =
+                static_cast<quint16>(uartPackets.size());
+
+        quint16 numberOfLooms =
+                static_cast<quint16>(loomPackets.size());
+
+        float insulationVoltage =
+                static_cast<float>(
+                    ui->doubleSpinBox_insuIsoVoltage->value());
+
+        float resistanceThreshold =
+                static_cast<float>(
+                    ui->doubleSpinBox_ResistanceThreshold->value());
+
+        quint8 testBetweenConnectors =
+                ui->checkBox_TestBwConnectors->isChecked()
+                ? 0x01
+                : 0x00;
+
+        test->sendInsulationStartPacket(
+            numberOfPackets,
+            numberOfLooms,
+            insulationVoltage,
+            resistanceThreshold,
+            testBetweenConnectors,
+            uartPackets);
 
     }
 
