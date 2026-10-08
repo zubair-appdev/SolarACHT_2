@@ -150,6 +150,17 @@ signals:
 
     void calibrationCompleted();
 
+    //Insu/Iso test Signals -----------------------
+
+    void insulationLoomPassed(
+        int loomNo);
+
+    void insulationLoomFailed(
+        int loomNo,
+        const QByteArray &loomData);
+
+     void insulationResultsCompleted();
+
 
 private:
     QSerialPort *serial;
@@ -205,6 +216,9 @@ private:
     bool m_receivingInsulationResults = false;
 
     QVector<float> m_insulationResults;
+
+    QByteArray m_currentInsulationLoomData;
+    int m_currentInsulationLoom = 0;
 };
 
 #endif // TESTCONTROLLER_H

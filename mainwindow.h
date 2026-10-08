@@ -77,7 +77,6 @@ public:
 
      QByteArray constructTwoWireStartPacket(quint16 totalPackets);
 
-     // Insulation Logic
      struct HarnessConnection
      {
          QString cable;
@@ -90,6 +89,24 @@ public:
 
      void populateTwoWireTestTable(const QVariantList &harness);
 
+     //Insu/Iso test Table Things
+     struct InsulationTableNet
+     {
+         int loomNo;
+         int netNo;
+
+         QVector<QPair<QString, int>> endpoints;
+     };
+
+     void populateInsulationTable(
+         const QVector<InsulationTableNet> &nets,
+         const QVariantList &patchData);
+
+
+     QString getActualConnectorName(
+         const QVariantList &patchData,
+         const QString &hardwareCon,
+         int hardwarePin);
 
 private slots:
      void on_pushButton_Save_clicked();
@@ -235,6 +252,8 @@ private slots:
 
       void on_pushButton_saveTwoWirePdf_clicked();
 
+      void on_pushButton_backFromInsuIso_clicked();
+
 public slots:
 
       void portStatus(const QString &data);
@@ -271,6 +290,17 @@ public slots:
       float calibrationBytesToFloat(
           const QByteArray &data,
           int offset);
+
+      //Insulation/Isolation test slots
+      void onInsulationLoomPassed(
+          int loomNo);
+
+      void onInsulationLoomFailed(
+          int loomNo,
+          const QByteArray &loomData);
+
+       void onInsulationResultsCompleted();
+
 
 private:
     Ui::MainWindow *ui;

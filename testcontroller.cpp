@@ -657,7 +657,7 @@ void TestController::sendInsulationStartPacket(
         char(testBetweenConnectors));
 
     // Test Type
-    packet.append(char(0x3F));
+    packet.append(char(0x4F)); //Actually it is 3F (For Insulation)
 
     // XOR
     quint8 checksum = 0;
@@ -681,6 +681,9 @@ void TestController::sendInsulationStartPacket(
     m_receivingInsulationResults = false;
 
     m_insulationResults.clear();
+
+    m_currentInsulationLoom = 0;
+    m_currentInsulationLoomData.clear();
 
     // TX START packet
     serial->write(packet);
@@ -1107,72 +1110,127 @@ void TestController::onReadyRead()
 
     if (m_receivingInsulationResults)
     {
+        // --------------------------------------------------------
+        // FINAL TEST TERMINATOR
+        // --------------------------------------------------------
+
         const QByteArray endMarker = "ABCDE";
 
-        // --------------------------------------------------------
-        // Wait until complete result data + ABCDE is received
-        // --------------------------------------------------------
-
-        int endIndex =
+        int testEndIndex =
                 buffer.indexOf(endMarker);
 
-        if (endIndex < 0)
+        if(testEndIndex >= 0)
         {
-            // ABCDE not received yet.
-            // Keep everything in buffer.
+            buffer.remove(
+                        0,
+                        testEndIndex + endMarker.size());
+
+            m_receivingInsulationResults = false;
+
+            qDebug()
+                    << "ABCDE received - "
+                       "Insulation test completed";
+
+            emit executeWriteToNotes(
+                        "Insulation Test Completed");
+
+            emit insulationResultsCompleted();
+
             return;
         }
 
         // --------------------------------------------------------
-        // Complete Insulation result data received
+        // ONE LOOM TERMINATOR
         // --------------------------------------------------------
 
-        QByteArray resultData =
-                buffer.left(endIndex);
+        const QByteArray loomEndMarker =
+                QByteArray::fromHex("FF00");
 
-        // Remove result data + ABCDE from buffer
+        int loomEndIndex =
+                buffer.indexOf(loomEndMarker);
+
+        if (loomEndIndex < 0)
+        {
+            // Complete loom has not arrived yet.
+            return;
+        }
+
+        // --------------------------------------------------------
+        // One complete loom received
+        // --------------------------------------------------------
+
+        QByteArray loomData =
+                buffer.left(loomEndIndex);
+
+        // Remove loom data + FF 00
         buffer.remove(
             0,
-            endIndex + endMarker.size());
+            loomEndIndex + loomEndMarker.size());
 
-        // --------------------------------------------------------
-        // Print raw result data
-        // --------------------------------------------------------
+        m_currentInsulationLoomData = loomData;
+
+        QByteArray failedMarker =
+                QByteArray::fromHex("2E2E");
+
+        bool loomFailed =
+                loomData.contains(failedMarker);
+
+        if(!loomFailed)
+        {
+            qDebug()
+                << "Insulation Loom"
+                << m_currentInsulationLoom + 1
+                << "PASS";
+
+            emit executeWriteToNotes(
+                QString("Insulation Loom %1 : PASS")
+                .arg(m_currentInsulationLoom + 1));
+
+            emit insulationLoomPassed(
+                m_currentInsulationLoom + 1);
+        }
+        else
+        {
+            qDebug()
+                << "Insulation Loom"
+                << m_currentInsulationLoom + 1
+                << "FAIL";
+
+            emit executeWriteToNotes(
+                QString("Insulation Loom %1 : FAIL")
+                .arg(m_currentInsulationLoom + 1));
+
+            emit insulationLoomFailed(
+                m_currentInsulationLoom + 1,
+                loomData);
+        }
 
         qDebug()
-                << "INSULATION RESULT DATA:"
-                << resultData.toHex(' ').toUpper();
+                << "INSULATION LOOM:"
+                << m_currentInsulationLoom + 1;
 
         qDebug()
-                << "INSULATION RESULT SIZE:"
-                << resultData.size()
+                << "LOOM DATA:"
+                << loomData.toHex(' ').toUpper();
+
+        qDebug()
+                << "LOOM DATA SIZE:"
+                << loomData.size()
                 << "Bytes";
 
         emit executeWriteToNotes(
-            QString(
-                "Insulation Result Data: %1")
+            QString("Insulation Loom %1 Result: %2")
+            .arg(m_currentInsulationLoom + 1)
             .arg(QString::fromLatin1(
-                resultData.toHex(' ').toUpper())));
+                loomData.toHex(' ').toUpper())));
 
         emit executeWriteToNotes(
-            QString(
-                "Insulation Result Size: %1 Bytes")
-            .arg(resultData.size()));
+            QString("Insulation Loom %1 Result Size: %2 Bytes")
+            .arg(m_currentInsulationLoom + 1)
+            .arg(loomData.size()));
 
-        // --------------------------------------------------------
-        // ABCDE received
-        // --------------------------------------------------------
-
-        qDebug()
-                << "ABCDE received - "
-                   "Insulation result reception complete";
-
-        emit executeWriteToNotes(
-            "Insulation Result Transmission Completed");
-
-        m_receivingInsulationResults = false;
-
-        //emit insulationResultsCompleted(); continue from here .....
+        // Move to next loom
+        m_currentInsulationLoom++;
 
         return;
     }

@@ -168,6 +168,22 @@ MainWindow::MainWindow(QWidget *parent)
             this,
             &MainWindow::onCalibrationCompleted);
 
+    // Insulation/Isolation test signals
+    connect(test,
+            &TestController::insulationLoomPassed,
+            this,
+            &MainWindow::onInsulationLoomPassed);
+
+    connect(test,
+            &TestController::insulationLoomFailed,
+            this,
+            &MainWindow::onInsulationLoomFailed);
+
+    connect(test,
+            &TestController::insulationResultsCompleted,
+            this,
+            &MainWindow::onInsulationResultsCompleted);
+
 }
 MainWindow::~MainWindow()
 {
@@ -3399,6 +3415,528 @@ float MainWindow::calibrationBytesToFloat(
     return value;
 }
 
+void MainWindow::onInsulationLoomPassed(int loomNo)
+{
+    qDebug() << "UI: Insulation Loom"
+             << loomNo
+             << "PASS";
+
+    QStandardItemModel *model =
+        qobject_cast<QStandardItemModel *>(
+            ui->tableView_InsuIso->model());
+
+    if(!model)
+        return;
+
+    for(int row = 0;
+        row < model->rowCount();
+        ++row)
+    {
+        int tableLoomNo =
+                model->item(row, 1)
+                ->text()
+                .toInt();
+
+        if(tableLoomNo == loomNo)
+        {
+            // Result column
+            model->item(row, 7)
+                ->setText("Pass");
+
+            // Fail Net With Resistance
+            model->item(row, 5)
+                ->setText("-");
+
+            // Light green row
+            for(int column = 0;
+                column < model->columnCount();
+                ++column)
+            {
+                model->item(row, column)
+                    ->setBackground(
+                        QColor(200, 255, 200));
+            }
+        }
+    }
+
+    ui->tableView_InsuIso->resizeRowsToContents();
+
+    // Scroll to bottom
+    ui->tableView_InsuIso->scrollToBottom();
+}
+
+void MainWindow::onInsulationLoomFailed(
+        int loomNo,
+        const QByteArray &loomData)
+{
+    qDebug() << "UI: Insulation Loom"
+             << loomNo
+             << "FAIL";
+
+    qDebug() << "Failed Loom Data:"
+             << loomData.toHex(' ').toUpper();
+
+    QStandardItemModel *model =
+        qobject_cast<QStandardItemModel *>(
+            ui->tableView_InsuIso->model());
+
+    if(!model)
+        return;
+
+
+    // --------------------------------------------------
+    // First mark ALL rows of this loom as PASS
+    // --------------------------------------------------
+
+    for(int row = 0;
+        row < model->rowCount();
+        ++row)
+    {
+        int tableLoomNo =
+                model->item(row, 1)
+                    ->text()
+                    .toInt();
+
+        if(tableLoomNo == loomNo)
+        {
+            // Result
+            model->item(row, 7)
+                ->setText("Pass");
+
+            // No failure initially
+            model->item(row, 5)
+                ->setText("-");
+
+            // Light green
+            for(int column = 0;
+                column < model->columnCount();
+                ++column)
+            {
+                model->item(row, column)
+                    ->setBackground(
+                        QColor(200, 255, 200));
+            }
+        }
+    }
+
+
+    // --------------------------------------------------
+    // Find all resistance records
+    //
+    // Format:
+    // 2E 2E + 4 byte float
+    // --------------------------------------------------
+
+    const QByteArray failedMarker =
+            QByteArray::fromHex("2E2E");
+
+    QVector<float> resistances;
+
+    int pos = 0;
+
+    while(pos + 6 <= loomData.size())
+    {
+        if(loomData.mid(pos, 2) == failedMarker)
+        {
+            QByteArray resistanceBytes =
+                    loomData.mid(pos + 2, 4);
+
+            quint32 bits =
+                    (static_cast<quint8>(resistanceBytes[3]) << 24) |
+                    (static_cast<quint8>(resistanceBytes[2]) << 16) |
+                    (static_cast<quint8>(resistanceBytes[1]) << 8)  |
+                     static_cast<quint8>(resistanceBytes[0]);
+
+            float resistance = 0.0f;
+
+            memcpy(&resistance,
+                   &bits,
+                   sizeof(float));
+
+            resistances.append(resistance);
+
+            qDebug() << "Resistance:"
+                     << resistance;
+
+            pos += 6;
+        }
+        else
+        {
+            pos++;
+        }
+    }
+
+
+    // --------------------------------------------------
+    // Find locator pairs
+    //
+    // Example:
+    // 04 00 08 00
+    // -> Net 4 <-> Net 8
+    // --------------------------------------------------
+
+    QVector<QPair<int,int>> locatorPairs;
+
+    pos = 0;
+
+    while(pos + 4 <= loomData.size())
+    {
+        // Skip 2F pass indicators
+        if(static_cast<quint8>(loomData[pos]) == 0x2F)
+        {
+            pos++;
+            continue;
+        }
+
+        // Skip resistance record
+        if(pos + 2 <= loomData.size() &&
+           loomData.mid(pos, 2) == failedMarker)
+        {
+            pos += 6;
+            continue;
+        }
+
+        quint16 net1 =
+                static_cast<quint8>(loomData[pos]) |
+                (static_cast<quint8>(loomData[pos + 1]) << 8);
+
+        quint16 net2 =
+                static_cast<quint8>(loomData[pos + 2]) |
+                (static_cast<quint8>(loomData[pos + 3]) << 8);
+
+        locatorPairs.append(
+            qMakePair(
+                static_cast<int>(net1),
+                static_cast<int>(net2)));
+
+        qDebug() << "Locator Pair:"
+                 << net1
+                 << "<->"
+                 << net2;
+
+        pos += 4;
+    }
+
+
+    // --------------------------------------------------
+    // Resistance <-> locator pair
+    // --------------------------------------------------
+
+    int count =
+            qMin(resistances.size(),
+                 locatorPairs.size());
+
+    for(int i = 0; i < count; ++i)
+    {
+        float resistance =
+                resistances[i];
+
+        int net1 =
+                locatorPairs[i].first;
+
+        int net2 =
+                locatorPairs[i].second;
+
+
+        // Smaller net becomes the row
+        int rowNet =
+                qMin(net1, net2);
+
+        // Larger net is displayed
+        int failedNet =
+                qMax(net1, net2);
+
+
+        QString failText =
+                QString("%1 -> %2")
+                    .arg(failedNet)
+                    .arg(resistance);
+
+
+        qDebug()
+            << "Failure:"
+            << "Net"
+            << rowNet
+            << "->"
+            << failedNet
+            << "Resistance"
+            << resistance;
+
+
+        // --------------------------------------------------
+        // Find corresponding row
+        // --------------------------------------------------
+
+        for(int row = 0;
+            row < model->rowCount();
+            ++row)
+        {
+            int tableLoomNo =
+                    model->item(row, 1)
+                        ->text()
+                        .toInt();
+
+            int tableNetNo =
+                    model->item(row, 2)
+                        ->text()
+                        .toInt();
+
+            if(tableLoomNo == loomNo &&
+               tableNetNo == rowNet)
+            {
+                QStandardItem *failItem =
+                        model->item(row, 5);
+
+                QStandardItem *resultItem =
+                        model->item(row, 7);
+
+
+                // Multiple failures can belong
+                // to the same source net.
+                if(failItem->text() == "-")
+                {
+                    failItem->setText(failText);
+                }
+                else
+                {
+                    failItem->setText(
+                        failItem->text()
+                        + "\n"
+                        + failText);
+                }
+
+                // Result
+                resultItem->setText("Fail");
+
+
+                // -----------------------------------------
+                // Light red for failed row
+                // -----------------------------------------
+
+                for(int column = 0;
+                    column < model->columnCount();
+                    ++column)
+                {
+                    model->item(row, column)
+                        ->setBackground(
+                            QColor(255, 200, 200));
+                }
+
+                break;
+            }
+        }
+    }
+
+
+    ui->tableView_InsuIso->resizeRowsToContents();
+
+    // Scroll to bottom
+    ui->tableView_InsuIso->scrollToBottom();
+}
+
+void MainWindow::onInsulationResultsCompleted()
+{
+    qDebug()
+        << "UI: Insulation Test Completed";
+
+    QMessageBox::information(
+        this,
+        "Insulation Test",
+        "Insulation Test Completed Successfully.");
+}
+
+void MainWindow::populateInsulationTable(
+    const QVector<InsulationTableNet> &nets,
+    const QVariantList &patchData)
+{
+    QStandardItemModel *model =
+        new QStandardItemModel(this);
+
+    model->setColumnCount(9);
+
+    model->setHorizontalHeaderLabels({
+        "S.No",
+        "Loom No",
+        "Net No",
+        "Source Net",
+        "Destination Net",
+        "Fail Net With Resistance (Ω)",
+        "Exp Value",
+        "Result",
+        "Remarks"
+    });
+
+    int serialNo = 1;
+
+    for(const InsulationTableNet &net : nets)
+    {
+        int netNo = net.netNo + 1;
+
+        /*
+         * Last net of a loom has no destination net,
+         * so there is nothing to test against after it.
+         */
+
+        QString destinationNets;
+
+        for(const InsulationTableNet &other : nets)
+        {
+            if(other.loomNo != net.loomNo)
+                continue;
+
+            int otherNetNo = other.netNo + 1;
+
+            if(otherNetNo > netNo)
+            {
+                if(!destinationNets.isEmpty())
+                    destinationNets += ", ";
+
+                destinationNets +=
+                    QString::number(otherNetNo);
+            }
+        }
+
+        if(destinationNets.isEmpty())
+            continue;
+
+        QList<QStandardItem *> row;
+
+        row.append(
+            new QStandardItem(
+                QString::number(serialNo)));
+
+        row.append(
+            new QStandardItem(
+                QString::number(net.loomNo)));
+
+        row.append(
+            new QStandardItem(
+                QString::number(netNo)));
+
+        QString sourceNet;
+
+        for(const auto &endpoint : net.endpoints)
+        {
+            if(!sourceNet.isEmpty())
+                sourceNet += "\n";
+
+            sourceNet += getActualConnectorName(
+                patchData,
+                endpoint.first,
+                endpoint.second);
+        }
+
+        row.append(
+            new QStandardItem(sourceNet));
+
+        // Destination Net
+        row.append(
+            new QStandardItem(destinationNets));
+
+        // Fail Net With Resistance
+        row.append(
+            new QStandardItem("-"));
+
+        // Expected value
+        QString expValue =
+            ">" +
+            ui->doubleSpinBox_ResistanceThreshold
+                ->text();
+
+        row.append(
+            new QStandardItem(expValue));
+
+        // Result
+        row.append(
+            new QStandardItem("Waiting..."));
+
+        // Remarks
+        row.append(
+            new QStandardItem(""));
+
+        model->appendRow(row);
+
+        serialNo++;
+    }
+
+    ui->tableView_InsuIso->setModel(model);
+
+    ui->tableView_InsuIso->setWordWrap(true);
+
+    ui->tableView_InsuIso->setTextElideMode(
+        Qt::ElideNone);
+
+    QHeaderView *header =
+        ui->tableView_InsuIso->horizontalHeader();
+
+    header->setSectionResizeMode(QHeaderView::Fixed);
+
+    int totalWidth =
+        ui->tableView_InsuIso->viewport()->width() * 0.95;
+
+    int normalRatio = 1;
+    int sourceRatio = 3;
+    int destinationRatio = 3;
+
+    int totalRatio =
+        normalRatio * 7 +       // S.No, Loom, Net, Fail, Exp, Result, Remarks
+        sourceRatio +
+        destinationRatio;
+
+    int unit = totalWidth / totalRatio;
+
+    ui->tableView_InsuIso->setColumnWidth(0, unit);              // S.No
+    ui->tableView_InsuIso->setColumnWidth(1, unit);              // Loom No
+    ui->tableView_InsuIso->setColumnWidth(2, unit);              // Net No
+    ui->tableView_InsuIso->setColumnWidth(3, unit * 3);          // Source Net
+    ui->tableView_InsuIso->setColumnWidth(4, unit * 3);          // Destination Net
+    ui->tableView_InsuIso->setColumnWidth(5, unit);              // Fail Net
+    ui->tableView_InsuIso->setColumnWidth(6, unit);              // Exp Value
+    ui->tableView_InsuIso->setColumnWidth(7, unit);              // Result
+    ui->tableView_InsuIso->setColumnWidth(8, unit);              // Remarks
+
+    ui->tableView_InsuIso->setEditTriggers(
+        QAbstractItemView::NoEditTriggers);
+
+    ui->tableView_InsuIso->resizeRowsToContents();
+}
+
+QString MainWindow::getActualConnectorName(
+    const QVariantList &patchData,
+    const QString &hardwareCon,
+    int hardwarePin)
+{
+    for(const QVariant &v : patchData)
+    {
+        QVariantMap m = v.toMap();
+
+        QString patchCon =
+            m["patchCon"].toString();
+
+        int patchPin =
+            m["patchPin"].toInt();
+
+        if(patchCon == hardwareCon &&
+           patchPin == hardwarePin)
+        {
+            QString userCon =
+                m["userCon"].toString();
+
+            QString userPin =
+                m["userPin"].toString();
+
+            return QString("(\"%1\", \"%2\")")
+                .arg(userCon)
+                .arg(userPin);
+        }
+    }
+
+    // If mapping is not found
+    return QString("(\"%1\", \"%2\")")
+        .arg(hardwareCon)
+        .arg(hardwarePin);
+}
+
 void MainWindow::onPortSelected(const QString &portName)
 {
     test->setPORTNAME(portName);
@@ -3550,6 +4088,14 @@ void MainWindow::on_pushButton_run_clicked()
             looms[cable[i]].append(row);
         }
 
+        // Final storer
+        QVector<QByteArray> loomPackets;
+        QVector<InsulationTableNet> tableNets;
+
+        //Loom wise net creation
+
+        quint16 loomNumber = 1;
+
         // Printing Looms
         for(auto it = looms.begin(); it != looms.end(); ++it)
         {
@@ -3570,13 +4116,6 @@ void MainWindow::on_pushButton_run_clicked()
 
         writeToNotes("");
         writeToNotes(QString("Total Looms : %1").arg(looms.size()));
-
-        // Final storer
-        QVector<QByteArray> loomPackets;
-
-        //Loom wise net creation
-
-        quint16 loomNumber = 1;
 
         for(auto it = looms.begin(); it != looms.end(); ++it)
         {
@@ -3682,6 +4221,17 @@ void MainWindow::on_pushButton_run_clicked()
                                 .arg(point.first)
                                 .arg(point.second));
                 }
+            }
+
+            for(int net = 0; net < fixedGroups.size(); ++net)
+            {
+                InsulationTableNet tableNet;
+
+                tableNet.loomNo = loomNumber;
+                tableNet.netNo = net;
+                tableNet.endpoints = fixedGroups[net];
+
+                tableNets.append(tableNet);
             }
 
             // ---------------------------------------------------
@@ -3888,6 +4438,16 @@ void MainWindow::on_pushButton_run_clicked()
             resistanceThreshold,
             testBetweenConnectors,
             uartPackets);
+
+        //Page Movement
+        // Move to two wire test page
+        ui->stackedWidget->setCurrentWidget(
+            ui->page_InsuIsoTEst);
+
+        ui->label_test_InsuIso->setText(
+            ui->comboBox_test->currentText()+" Test");
+
+        populateInsulationTable(tableNets, patch);
 
     }
 
@@ -5168,4 +5728,9 @@ void MainWindow::on_pushButton_editCalibration_clicked()
 void MainWindow::on_pushButton_saveTwoWirePdf_clicked()
 {
 
+}
+
+void MainWindow::on_pushButton_backFromInsuIso_clicked()
+{
+     ui->stackedWidget->setCurrentWidget(ui->page_test);
 }

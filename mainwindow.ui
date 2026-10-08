@@ -56,7 +56,7 @@
     gridline-color: #d9d9d9;</string>
       </property>
       <property name="currentIndex">
-       <number>12</number>
+       <number>13</number>
       </property>
       <widget class="QWidget" name="page">
        <layout class="QGridLayout" name="gridLayout_2">
@@ -5980,6 +5980,326 @@ QScrollBar::sub-page:horizontal
              <font>
               <pointsize>11</pointsize>
              </font>
+            </property>
+            <property name="text">
+             <string>Back</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="page_InsuIsoTEst">
+       <layout class="QGridLayout" name="gridLayout_20">
+        <item row="0" column="0">
+         <layout class="QHBoxLayout" name="horizontalLayout_21">
+          <item>
+           <widget class="QLabel" name="label_test_InsuIso">
+            <property name="font">
+             <font>
+              <pointsize>10</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>TextLabel</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_44">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Minimum</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </item>
+        <item row="1" column="0">
+         <widget class="QTableView" name="tableView_InsuIso">
+          <property name="styleSheet">
+           <string notr="true">QScrollBar:vertical
+{
+    background: #2C3E50;
+    width: 14px;
+    border-radius: 7px;
+}
+
+QScrollBar::handle:vertical
+{
+    background: #81D4FA;
+    border-radius: 7px;
+    min-height: 30px;
+}
+
+QScrollBar::handle:vertical:hover
+{
+    background: #B3E5FC;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical
+{
+    height: 0px;
+}
+
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical
+{
+    background: none;
+}
+
+QScrollBar:horizontal
+{
+    background: #2C3E50;
+    height: 14px;
+    border-radius: 7px;
+}
+
+QScrollBar::handle:horizontal
+{
+    background: #81D4FA;
+    border-radius: 7px;
+    min-width: 30px;
+}
+
+QScrollBar::handle:horizontal:hover
+{
+    background: #B3EFC;
+}
+
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal
+{
+    width: 0px;
+}
+
+QScrollBar::add-page:horizontal,
+QScrollBar::sub-page:horizontal
+{
+    background: none;
+}</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <layout class="QHBoxLayout" name="horizontalLayout_20">
+          <item>
+           <widget class="QPushButton" name="pushButton_stopInsuIso">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+              <weight>50</weight>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">QPushButton {
+    background-color: #ff5d65;
+    color: #222222;
+    border: 1px solid #999999;
+    border-radius: 3px;
+    padding: 6px 14px;
+    font-size: 12pt;
+    font-weight: normal;
+}
+
+QPushButton:hover {
+    background-color: #dcdcdc;
+    border: 1px solid #777777;
+}
+
+QPushButton:pressed {
+    background-color: #c8c8c8;
+    border: 1px solid #666666;
+    padding-top: 7px;
+    padding-left: 15px;
+}
+
+QPushButton:disabled {
+    background-color: #eeeeee;
+    color: #999999;
+    border: 1px solid #cccccc;
+}</string>
+            </property>
+            <property name="text">
+             <string>STOP</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_40">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QPushButton" name="pushButton_saveInsuIso">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+              <weight>50</weight>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">QPushButton {
+    background-color: #e6e6e6;
+    color: #222222;
+    border: 1px solid #999999;
+    border-radius: 3px;
+    padding: 6px 14px;
+    font-size: 12pt;
+    font-weight: normal;
+}
+
+QPushButton:hover {
+    background-color: #dcdcdc;
+    border: 1px solid #777777;
+}
+
+QPushButton:pressed {
+    background-color: #c8c8c8;
+    border: 1px solid #666666;
+    padding-top: 7px;
+    padding-left: 15px;
+}
+
+QPushButton:disabled {
+    background-color: #eeeeee;
+    color: #999999;
+    border: 1px solid #cccccc;
+}</string>
+            </property>
+            <property name="text">
+             <string>Save</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_41">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QPushButton" name="pushButton_openInsuIsoFiles">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+              <weight>50</weight>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">QPushButton {
+    background-color: #e6e6e6;
+    color: #222222;
+    border: 1px solid #999999;
+    border-radius: 3px;
+    padding: 6px 14px;
+    font-size: 12pt;
+    font-weight: normal;
+}
+
+QPushButton:hover {
+    background-color: #dcdcdc;
+    border: 1px solid #777777;
+}
+
+QPushButton:pressed {
+    background-color: #c8c8c8;
+    border: 1px solid #666666;
+    padding-top: 7px;
+    padding-left: 15px;
+}
+
+QPushButton:disabled {
+    background-color: #eeeeee;
+    color: #999999;
+    border: 1px solid #cccccc;
+}</string>
+            </property>
+            <property name="text">
+             <string>Open Files</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_42">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QPushButton" name="pushButton_backFromInsuIso">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+              <weight>50</weight>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">QPushButton {
+    background-color: #e6e6e6;
+    color: #222222;
+    border: 1px solid #999999;
+    border-radius: 3px;
+    padding: 6px 14px;
+    font-size: 12pt;
+    font-weight: normal;
+}
+
+QPushButton:hover {
+    background-color: #dcdcdc;
+    border: 1px solid #777777;
+}
+
+QPushButton:pressed {
+    background-color: #c8c8c8;
+    border: 1px solid #666666;
+    padding-top: 7px;
+    padding-left: 15px;
+}
+
+QPushButton:disabled {
+    background-color: #eeeeee;
+    color: #999999;
+    border: 1px solid #cccccc;
+}</string>
             </property>
             <property name="text">
              <string>Back</string>
