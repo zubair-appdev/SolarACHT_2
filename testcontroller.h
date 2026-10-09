@@ -100,8 +100,23 @@ public:
         float insulationVoltage,
         float resistanceThreshold,
         quint8 testBetweenConnectors,
+        quint8 testType,
         const QVector<QByteArray> &packets);
 
+    bool isInsuIsoTestRunning() const
+    {
+        return m_receivingInsulationResults;
+    }
+
+    void setCurrentInsulationTotalNets(int totalNets)
+    {
+        m_currentInsulationTotalNets = totalNets;
+    }
+
+    void setInsulationLoomNetCounts(const QVector<int> &netCounts)
+    {
+        m_insulationNetsPerLoom = netCounts;
+    }
 
 
     inline void pauseFor(int milliseconds) {
@@ -153,13 +168,15 @@ signals:
     //Insu/Iso test Signals -----------------------
 
     void insulationLoomPassed(
-        int loomNo);
+            int loomNo);
 
     void insulationLoomFailed(
-        int loomNo,
-        const QByteArray &loomData);
+            int loomNo,
+            const QByteArray &loomData);
 
-     void insulationResultsCompleted();
+    void insulationResultsCompleted();
+
+    void insulationNetMarkerReceived(int loomNo, int totalNets);
 
 
 private:
@@ -219,6 +236,12 @@ private:
 
     QByteArray m_currentInsulationLoomData;
     int m_currentInsulationLoom = 0;
+
+    int m_currentInsulationTotalNets = 0;
+    int m_insulationNetMarkersSeen = 0;
+
+    QVector<int> m_insulationNetsPerLoom;
+
 };
 
 #endif // TESTCONTROLLER_H

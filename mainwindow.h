@@ -254,6 +254,12 @@ private slots:
 
       void on_pushButton_backFromInsuIso_clicked();
 
+      void on_pushButton_stopInsuIso_clicked();
+
+      void on_pushButton_saveInsuIso_clicked();
+
+      void on_pushButton_openInsuIsoFiles_clicked();
+
 public slots:
 
       void portStatus(const QString &data);
@@ -301,6 +307,8 @@ public slots:
 
        void onInsulationResultsCompleted();
 
+       void onInsulationNetMarkerReceived(int loomNo, int totalNets);
+
 
 private:
     Ui::MainWindow *ui;
@@ -342,6 +350,11 @@ private:
     //Calibration Test
     QStandardItemModel *m_calibrationModel = nullptr;
 
+    //Insu/Iso Test Progress bar
+    double currentPercentage = 0.0;
+    int totalInsulationLooms = 0;
+
+    double currentLoomNetProgress = 0.0;
 };
 
 #endif // MAINWINDOW_H

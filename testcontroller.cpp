@@ -590,6 +590,7 @@ void TestController::sendInsulationStartPacket(
     float insulationVoltage,
     float resistanceThreshold,
     quint8 testBetweenConnectors,
+    quint8 testType,
     const QVector<QByteArray> &packets)
 {
     QByteArray packet;
@@ -656,8 +657,8 @@ void TestController::sendInsulationStartPacket(
     packet.append(
         char(testBetweenConnectors));
 
-    // Test Type
-    packet.append(char(0x4F)); //Actually it is 3F (For Insulation)
+    // Test Type : 3F (Insulation), 4F (Isolation)
+    packet.append(char(testType));
 
     // XOR
     quint8 checksum = 0;
@@ -684,6 +685,8 @@ void TestController::sendInsulationStartPacket(
 
     m_currentInsulationLoom = 0;
     m_currentInsulationLoomData.clear();
+
+    m_insulationNetMarkersSeen = 0;
 
     // TX START packet
     serial->write(packet);
@@ -720,6 +723,22 @@ void TestController::abortCommand()
     // Reset packet state
     m_currentPacket = 0;
     m_packets.clear();
+
+    // Stop Insulation / Isolation
+    m_waitingForInsulationStartAck = false;
+    m_waitingForInsulationPacketAck = false;
+    m_receivingInsulationResults = false;
+
+    // Stop/Reset Insulation / Isolation packet state
+    m_currentInsulationPacket = 0;
+    m_insulationPackets.clear();
+
+    // Clear results
+    m_insulationResults.clear();
+
+    // Reset loom state
+    m_currentInsulationLoom = 0;
+    m_currentInsulationLoomData.clear();
 
     // Clear received data
     buffer.clear();
@@ -1105,11 +1124,54 @@ void TestController::onReadyRead()
     }
 
     // =====================================================
-    // INSULATION RESULT RECEPTION
+    // INSULATION/ISOLATION RESULT RECEPTION
     // =====================================================
 
     if (m_receivingInsulationResults)
     {
+        // Count 2F 2F markers in the current loom data
+        const QByteArray netMarker = QByteArray::fromHex("2F2F");
+        const QByteArray loomEndMarker = QByteArray::fromHex("FF00");
+
+        int loomEndIndex = buffer.indexOf(loomEndMarker);
+
+        QByteArray currentLoomData =
+            (loomEndIndex >= 0)
+                ? buffer.left(loomEndIndex)
+                : buffer;
+
+        int markerCount = 0;
+        int pos = 0;
+
+        while ((pos = currentLoomData.indexOf(netMarker, pos)) >= 0)
+        {
+            markerCount++;
+            pos += netMarker.size();  // Skip both bytes of this marker
+        }
+
+        qDebug() << "Loom data bytes:" << currentLoomData.size()
+                 << "Marker pairs:" << markerCount
+                 << "Expected nets:"
+                 << m_insulationNetsPerLoom.value(m_currentInsulationLoom, 0);
+
+        while (m_insulationNetMarkersSeen < markerCount &&
+               m_insulationNetMarkersSeen <
+                   m_insulationNetsPerLoom.value(m_currentInsulationLoom, 0))
+        {
+            m_insulationNetMarkersSeen++;
+
+            int totalNets =
+                m_insulationNetsPerLoom.value(m_currentInsulationLoom, 0);
+
+            qDebug() << "Loom:" << m_currentInsulationLoom + 1
+                     << "Net marker:" << m_insulationNetMarkersSeen
+                     << "Total nets:" << totalNets;
+
+            emit insulationNetMarkerReceived(
+                m_currentInsulationLoom + 1,
+                totalNets);
+        }
+
         // --------------------------------------------------------
         // FINAL TEST TERMINATOR
         // --------------------------------------------------------
@@ -1129,10 +1191,10 @@ void TestController::onReadyRead()
 
             qDebug()
                     << "ABCDE received - "
-                       "Insulation test completed";
+                       " test completed";
 
             emit executeWriteToNotes(
-                        "Insulation Test Completed");
+                        " Test Completed");
 
             emit insulationResultsCompleted();
 
@@ -1142,12 +1204,6 @@ void TestController::onReadyRead()
         // --------------------------------------------------------
         // ONE LOOM TERMINATOR
         // --------------------------------------------------------
-
-        const QByteArray loomEndMarker =
-                QByteArray::fromHex("FF00");
-
-        int loomEndIndex =
-                buffer.indexOf(loomEndMarker);
 
         if (loomEndIndex < 0)
         {
@@ -1231,6 +1287,7 @@ void TestController::onReadyRead()
 
         // Move to next loom
         m_currentInsulationLoom++;
+        m_insulationNetMarkersSeen = 0;
 
         return;
     }
@@ -1280,7 +1337,7 @@ void TestController::onReadyRead()
             }
 
             // =================================================
-            // INSULATION ACK FOR START PACKET
+            // INSULATION/ISOLATION ACK FOR START PACKET
             // =================================================
 
             if (m_waitingForInsulationStartAck)
@@ -1359,7 +1416,7 @@ void TestController::onReadyRead()
             }
 
             // =================================================
-            // ACK for INSULATION DATA Packet
+            // ACK for INSULATION/ISOLATION DATA Packet
             // =================================================
 
             if (m_waitingForInsulationPacketAck)

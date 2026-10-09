@@ -9,8 +9,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>962</width>
-    <height>684</height>
+    <width>968</width>
+    <height>687</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -56,7 +56,7 @@
     gridline-color: #d9d9d9;</string>
       </property>
       <property name="currentIndex">
-       <number>13</number>
+       <number>16</number>
       </property>
       <widget class="QWidget" name="page">
        <layout class="QGridLayout" name="gridLayout_2">
@@ -4952,6 +4952,20 @@ QScrollBar::sub-page:horizontal
         </item>
         <item row="2" column="0">
          <widget class="QProgressBar" name="progressBar_twoWire">
+          <property name="styleSheet">
+           <string notr="true">QProgressBar {
+    border: 1px solid #808080;
+    border-radius: 3px;
+    background-color: #E0E0E0;
+    text-align: center;
+    color: black;
+}
+
+QProgressBar::chunk {
+    background-color: #28A745;
+    border-radius: 2px;
+}</string>
+          </property>
           <property name="maximum">
            <number>100</number>
           </property>
@@ -5727,6 +5741,34 @@ QPushButton:disabled {
            </spacer>
           </item>
           <item>
+           <widget class="QPushButton" name="pushButton_selfTestSave">
+            <property name="font">
+             <font>
+              <pointsize>11</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Save</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_43">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Minimum</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
            <widget class="QPushButton" name="pushButton_selfAbort">
             <property name="font">
              <font>
@@ -5992,40 +6034,6 @@ QScrollBar::sub-page:horizontal
       </widget>
       <widget class="QWidget" name="page_InsuIsoTEst">
        <layout class="QGridLayout" name="gridLayout_20">
-        <item row="0" column="0">
-         <layout class="QHBoxLayout" name="horizontalLayout_21">
-          <item>
-           <widget class="QLabel" name="label_test_InsuIso">
-            <property name="font">
-             <font>
-              <pointsize>10</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>TextLabel</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <spacer name="horizontalSpacer_44">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeType">
-             <enum>QSizePolicy::Minimum</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-         </layout>
-        </item>
         <item row="1" column="0">
          <widget class="QTableView" name="tableView_InsuIso">
           <property name="styleSheet">
@@ -6093,7 +6101,7 @@ QScrollBar::sub-page:horizontal
           </property>
          </widget>
         </item>
-        <item row="2" column="0">
+        <item row="3" column="0">
          <layout class="QHBoxLayout" name="horizontalLayout_20">
           <item>
            <widget class="QPushButton" name="pushButton_stopInsuIso">
@@ -6308,6 +6316,67 @@ QPushButton:disabled {
           </item>
          </layout>
         </item>
+        <item row="0" column="0">
+         <layout class="QHBoxLayout" name="horizontalLayout_21">
+          <item>
+           <widget class="QLabel" name="label_test_InsuIso">
+            <property name="font">
+             <font>
+              <pointsize>10</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>TextLabel</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_44">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Minimum</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </item>
+        <item row="2" column="0">
+         <widget class="QProgressBar" name="progressBar_InsuIsoTest">
+          <property name="styleSheet">
+           <string notr="true">QProgressBar {
+    border: 1px solid #808080;
+    border-radius: 3px;
+    background-color: #E0E0E0;
+    text-align: center;
+    color: black;
+}
+
+QProgressBar::chunk {
+    background-color: #28A745;
+    border-radius: 2px;
+}</string>
+          </property>
+          <property name="value">
+           <number>0</number>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+          <property name="textDirection">
+           <enum>QProgressBar::TopToBottom</enum>
+          </property>
+         </widget>
+        </item>
        </layout>
       </widget>
      </widget>
@@ -6319,7 +6388,7 @@ QPushButton:disabled {
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>962</width>
+     <width>968</width>
      <height>21</height>
     </rect>
    </property>

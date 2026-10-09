@@ -1,11 +1,13 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "testcontroller.h"
+#include <QToolButton>
 
 QFile MainWindow::logFile;
 QTextStream MainWindow::logStream;
 
-#include <QToolButton>
+
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -183,6 +185,11 @@ MainWindow::MainWindow(QWidget *parent)
             &TestController::insulationResultsCompleted,
             this,
             &MainWindow::onInsulationResultsCompleted);
+
+    connect(test,
+            &TestController::insulationNetMarkerReceived,
+            this,
+            &MainWindow::onInsulationNetMarkerReceived);
 
 }
 MainWindow::~MainWindow()
@@ -2550,6 +2557,11 @@ void MainWindow::processTwoWireResults()
         QString("Two Wire comparison completed. "
                 "Results: %1")
         .arg(resultCount));
+
+    QMessageBox::information(
+                this,
+                "Two Wire Test",
+                "Two Wire Test Completed Successfully.");
 }
 
 bool MainWindow::checkTwoWireExpected(
@@ -3447,22 +3459,43 @@ void MainWindow::onInsulationLoomPassed(int loomNo)
             model->item(row, 5)
                 ->setText("-");
 
-            // Light green row
-            for(int column = 0;
-                column < model->columnCount();
-                ++column)
-            {
-                model->item(row, column)
-                    ->setBackground(
-                        QColor(200, 255, 200));
-            }
+            // Light green Cell
+            model->item(row, 7)
+                ->setBackground(
+                    QColor(200, 255, 200));
+
         }
     }
 
     ui->tableView_InsuIso->resizeRowsToContents();
 
-    // Scroll to bottom
-    ui->tableView_InsuIso->scrollToBottom();
+    ui->tableView_InsuIso->resizeRowsToContents();
+
+    // Position the last row of this loom in the center
+    for(int row = model->rowCount() - 1; row >= 0; --row)
+    {
+        int tableLoomNo =
+                model->item(row, 1)->text().toInt();
+
+        if(tableLoomNo == loomNo)
+        {
+            ui->tableView_InsuIso->scrollTo(
+                model->index(row, 7),
+                QAbstractItemView::PositionAtCenter);
+
+            break;
+        }
+    }
+
+    //For Progress Bar
+    if(totalInsulationLooms > 0)
+    {
+        currentPercentage += 100.0 / totalInsulationLooms;
+        currentLoomNetProgress = 0.0;
+
+        ui->progressBar_InsuIsoTest->setValue(
+            qRound(qMin(currentPercentage, 100.0)));
+    }
 }
 
 void MainWindow::onInsulationLoomFailed(
@@ -3484,41 +3517,21 @@ void MainWindow::onInsulationLoomFailed(
         return;
 
 
-    // --------------------------------------------------
-    // First mark ALL rows of this loom as PASS
-    // --------------------------------------------------
-
-    for(int row = 0;
-        row < model->rowCount();
-        ++row)
+    // First mark all rows of this loom as PASS
+    for(int row = 0; row < model->rowCount(); ++row)
     {
-        int tableLoomNo =
-                model->item(row, 1)
-                    ->text()
-                    .toInt();
+        int tableLoomNo = model->item(row, 1)->text().toInt();
 
         if(tableLoomNo == loomNo)
         {
-            // Result
-            model->item(row, 7)
-                ->setText("Pass");
+            model->item(row, 7)->setText("Pass");
+            model->item(row, 5)->setText("-");
 
-            // No failure initially
-            model->item(row, 5)
-                ->setText("-");
-
-            // Light green
-            for(int column = 0;
-                column < model->columnCount();
-                ++column)
-            {
-                model->item(row, column)
-                    ->setBackground(
-                        QColor(200, 255, 200));
-            }
+            // Only the Result column becomes green
+            model->item(row, 7)->setBackground(
+                QColor(200, 255, 200));
         }
     }
-
 
     // --------------------------------------------------
     // Find all resistance records
@@ -3710,17 +3723,12 @@ void MainWindow::onInsulationLoomFailed(
 
 
                 // -----------------------------------------
-                // Light red for failed row
+                // Light red for failed row cell
                 // -----------------------------------------
 
-                for(int column = 0;
-                    column < model->columnCount();
-                    ++column)
-                {
-                    model->item(row, column)
-                        ->setBackground(
-                            QColor(255, 200, 200));
-                }
+                model->item(row, 7)
+                    ->setBackground(
+                        QColor(255, 200, 200));
 
                 break;
             }
@@ -3730,19 +3738,80 @@ void MainWindow::onInsulationLoomFailed(
 
     ui->tableView_InsuIso->resizeRowsToContents();
 
-    // Scroll to bottom
-    ui->tableView_InsuIso->scrollToBottom();
+    // Position the last row of this failed loom in the center
+    for(int row = model->rowCount() - 1; row >= 0; --row)
+    {
+        int tableLoomNo =
+                model->item(row, 1)->text().toInt();
+
+        if(tableLoomNo == loomNo)
+        {
+            ui->tableView_InsuIso->scrollTo(
+                model->index(row, 7),
+                QAbstractItemView::PositionAtCenter);
+
+            break;
+        }
+    }
+
+    //For Progress Bar
+    if(totalInsulationLooms > 0)
+    {
+        currentPercentage += 100.0 / totalInsulationLooms;
+        currentLoomNetProgress = 0.0;
+
+        ui->progressBar_InsuIsoTest->setValue(
+            qRound(qMin(currentPercentage, 100.0)));
+    }
 }
 
 void MainWindow::onInsulationResultsCompleted()
 {
     qDebug()
-        << "UI: Insulation Test Completed";
+            << "UI: Test Completed";
+
+    // Move table to the top
+    ui->tableView_InsuIso->scrollToTop();
 
     QMessageBox::information(
-        this,
-        "Insulation Test",
-        "Insulation Test Completed Successfully.");
+                this,
+                "Test",
+                "Test Completed Successfully.");
+}
+
+void MainWindow::onInsulationNetMarkerReceived(
+    int loomNo, int totalNets)
+{
+    Q_UNUSED(loomNo);
+
+    if(totalInsulationLooms <= 0 || totalNets <= 0)
+        return;
+
+    // Progress allocated to one loom
+    double loomAllowance =
+        100.0 / totalInsulationLooms;
+
+    // Progress allocated to one net
+    double progressPerNet =
+        loomAllowance / totalNets;
+
+    // Advance progress for this net
+    currentLoomNetProgress += progressPerNet;
+
+    // Never exceed this loom's allocated progress
+    currentLoomNetProgress =
+        qMin(currentLoomNetProgress, loomAllowance);
+
+    double progress =
+        currentPercentage + currentLoomNetProgress;
+
+    ui->progressBar_InsuIsoTest->setValue(
+        qRound(qMin(progress, 100.0)));
+
+    qDebug() << "Current percentage:" << currentPercentage
+             << "Current loom net progress:" << currentLoomNetProgress
+             << "Progress bar:"
+             << ui->progressBar_InsuIsoTest->value();
 }
 
 void MainWindow::populateInsulationTable(
@@ -3760,7 +3829,7 @@ void MainWindow::populateInsulationTable(
         "Net No",
         "Source Net",
         "Destination Net",
-        "Fail Net With Resistance (Ω)",
+        "Failed Net (Ω)",
         "Exp Value",
         "Result",
         "Remarks"
@@ -3869,36 +3938,31 @@ void MainWindow::populateInsulationTable(
     QHeaderView *header =
         ui->tableView_InsuIso->horizontalHeader();
 
-    header->setSectionResizeMode(QHeaderView::Fixed);
+    // Compact columns
+    header->setSectionResizeMode(0, QHeaderView::ResizeToContents); // S.No
+    header->setSectionResizeMode(1, QHeaderView::ResizeToContents); // Loom No
+    header->setSectionResizeMode(2, QHeaderView::ResizeToContents); // Net No
 
-    int totalWidth =
-        ui->tableView_InsuIso->viewport()->width() * 0.95;
+    // Remaining columns stretch to fill available space
+    header->setSectionResizeMode(3, QHeaderView::Stretch); // Source Net
+    header->setSectionResizeMode(4, QHeaderView::Stretch); // Destination Net
+    header->setSectionResizeMode(5, QHeaderView::Stretch); // Failed Net (Ω)
+    header->setSectionResizeMode(6, QHeaderView::Stretch); // Exp Value
+    header->setSectionResizeMode(7, QHeaderView::Stretch); // Result
+    header->setSectionResizeMode(8, QHeaderView::Stretch); // Remarks
 
-    int normalRatio = 1;
-    int sourceRatio = 3;
-    int destinationRatio = 3;
+    // Wrapping
+    ui->tableView_InsuIso->setWordWrap(true);
+    ui->tableView_InsuIso->setTextElideMode(Qt::ElideNone);
 
-    int totalRatio =
-        normalRatio * 7 +       // S.No, Loom, Net, Fail, Exp, Result, Remarks
-        sourceRatio +
-        destinationRatio;
-
-    int unit = totalWidth / totalRatio;
-
-    ui->tableView_InsuIso->setColumnWidth(0, unit);              // S.No
-    ui->tableView_InsuIso->setColumnWidth(1, unit);              // Loom No
-    ui->tableView_InsuIso->setColumnWidth(2, unit);              // Net No
-    ui->tableView_InsuIso->setColumnWidth(3, unit * 3);          // Source Net
-    ui->tableView_InsuIso->setColumnWidth(4, unit * 3);          // Destination Net
-    ui->tableView_InsuIso->setColumnWidth(5, unit);              // Fail Net
-    ui->tableView_InsuIso->setColumnWidth(6, unit);              // Exp Value
-    ui->tableView_InsuIso->setColumnWidth(7, unit);              // Result
-    ui->tableView_InsuIso->setColumnWidth(8, unit);              // Remarks
-
-    ui->tableView_InsuIso->setEditTriggers(
-        QAbstractItemView::NoEditTriggers);
+    // No horizontal scrolling
+    ui->tableView_InsuIso->setHorizontalScrollBarPolicy(
+        Qt::ScrollBarAlwaysOff);
 
     ui->tableView_InsuIso->resizeRowsToContents();
+
+    // Force the table to the top
+    ui->tableView_InsuIso->scrollToTop();
 }
 
 QString MainWindow::getActualConnectorName(
@@ -4057,13 +4121,16 @@ void MainWindow::on_pushButton_run_clicked()
     // Two Wire BLOCK End------------------------
 
 
-    // Insulation Packet logic start ------------------------------------------------
+    // Insulation/Isolation Packet logic start ------------------------------------------------
 
-    if(ui->comboBox_test->currentText() == "Insulation")
+    if(ui->comboBox_test->currentText() == "Insulation" ||
+       ui->comboBox_test->currentText() == "Isolation")
     {
         writeToNotes("======================================");
         writeToNotes("STEP-1 : DIVIDING HARNESS INTO LOOMS");
         writeToNotes("======================================");
+
+        QVector<int> insulationNetsPerLoom;
 
         QMap<QString, QVector<HarnessConnection>> looms;
 
@@ -4223,6 +4290,7 @@ void MainWindow::on_pushButton_run_clicked()
                 }
             }
 
+
             for(int net = 0; net < fixedGroups.size(); ++net)
             {
                 InsulationTableNet tableNet;
@@ -4233,6 +4301,8 @@ void MainWindow::on_pushButton_run_clicked()
 
                 tableNets.append(tableNet);
             }
+
+            insulationNetsPerLoom.append(fixedGroups.size());
 
             // ---------------------------------------------------
             // STEP-4 : Print Packet Structure
@@ -4334,6 +4404,8 @@ void MainWindow::on_pushButton_run_clicked()
             //Loom packets storage end -----------------------------------
         }
 
+        test->setInsulationLoomNetCounts(insulationNetsPerLoom);
+
         //UART Packet Creation of 1024 starts ------------------------
 
         writeToNotes("");
@@ -4411,12 +4483,20 @@ void MainWindow::on_pushButton_run_clicked()
 
         //UART Packet Creation of 1024 ends --------------------------
 
+
+        //Reset Progress
+        currentPercentage = 0.0;
+        ui->progressBar_InsuIsoTest->setValue(0);
+        currentLoomNetProgress = 0.0;
+
         //Sending Packet Creation To testcontroller
         quint16 numberOfPackets =
                 static_cast<quint16>(uartPackets.size());
 
         quint16 numberOfLooms =
                 static_cast<quint16>(loomPackets.size());
+
+        totalInsulationLooms = numberOfLooms;
 
         float insulationVoltage =
                 static_cast<float>(
@@ -4431,12 +4511,18 @@ void MainWindow::on_pushButton_run_clicked()
                 ? 0x01
                 : 0x00;
 
+        quint8 testType =
+            (ui->comboBox_test->currentText() == "Isolation")
+            ? 0x4F
+            : 0x3F;
+
         test->sendInsulationStartPacket(
             numberOfPackets,
             numberOfLooms,
             insulationVoltage,
             resistanceThreshold,
             testBetweenConnectors,
+            testType,
             uartPackets);
 
         //Page Movement
@@ -5732,5 +5818,54 @@ void MainWindow::on_pushButton_saveTwoWirePdf_clicked()
 
 void MainWindow::on_pushButton_backFromInsuIso_clicked()
 {
+    if (test->isInsuIsoTestRunning())
+       {
+           QMessageBox::warning(
+               this,
+               "Test Running",
+               "Please wait until the test is completed.");
+           return;
+       }
+
      ui->stackedWidget->setCurrentWidget(ui->page_test);
+}
+
+void MainWindow::on_pushButton_stopInsuIso_clicked()
+{
+    QMessageBox::StandardButton reply =
+            QMessageBox::question(
+                this,
+                "Abort Test",
+                "Are you sure you want to abort the test?",
+                QMessageBox::Yes |
+                QMessageBox::No);
+
+    if (reply == QMessageBox::Yes)
+    {
+        test->abortCommand();
+    }
+}
+
+void MainWindow::on_pushButton_saveInsuIso_clicked()
+{
+    if (test->isInsuIsoTestRunning())
+       {
+           QMessageBox::warning(
+               this,
+               "Test Running",
+               "Please wait until the test is completed.");
+           return;
+       }
+}
+
+void MainWindow::on_pushButton_openInsuIsoFiles_clicked()
+{
+    if (test->isInsuIsoTestRunning())
+       {
+           QMessageBox::warning(
+               this,
+               "Test Running",
+               "Please wait until the test is completed.");
+           return;
+       }
 }
