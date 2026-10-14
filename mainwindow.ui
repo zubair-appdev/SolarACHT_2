@@ -56,7 +56,7 @@
     gridline-color: #d9d9d9;</string>
       </property>
       <property name="currentIndex">
-       <number>16</number>
+       <number>14</number>
       </property>
       <widget class="QWidget" name="page">
        <layout class="QGridLayout" name="gridLayout_2">
@@ -6389,7 +6389,7 @@ QProgressBar::chunk {
      <x>0</x>
      <y>0</y>
      <width>968</width>
-     <height>21</height>
+     <height>22</height>
     </rect>
    </property>
   </widget>

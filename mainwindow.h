@@ -27,6 +27,17 @@
 
 #include <QStandardPaths>
 
+#include <QPrinter>
+#include <QTextDocument>
+#include <QFileDialog>
+#include <QDate>
+#include <QTime>
+#include <QDir>
+#include <QUrl>
+#include <QPageSize>
+
+#include <QImage>
+#include <QBuffer>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -248,9 +259,39 @@ private slots:
 
       void on_pushButton_setColumnCalibrate_clicked();
 
+      void on_pushButton_saveTwoWirePdf_clicked();
+
+      void generateTwoWireTestPDF();
+
+      //QString imageToBase64(const QString &filePath);
+
+      void refreshPorts();
+
+
+      qreal drawTwoWireTestHeader(QPainter &painter,
+                                  qreal pageWidth,
+                                  int failedPinsCount);
+
+      void drawTwoWireTestTable(QPainter &painter,
+                                QPrinter &printer,
+                                qreal pageWidth,
+                                qreal pageHeight,
+                                qreal bottom,
+                                qreal &y,
+                                int &pageNumber);
+
+      void drawTwoWireTestFooter(QPainter &painter,
+                                 QPrinter &printer,
+                                 qreal pageWidth,
+                                 qreal pageHeight,
+                                 qreal bottom,
+                                 qreal &y,
+                                 int &pageNumber);
+
+
       void on_pushButton_editCalibration_clicked();
 
-      void on_pushButton_saveTwoWirePdf_clicked();
+//      void on_pushButton_saveTwoWirePdf_clicked();
 
       void on_pushButton_backFromInsuIso_clicked();
 
@@ -259,6 +300,27 @@ private slots:
       void on_pushButton_saveInsuIso_clicked();
 
       void on_pushButton_openInsuIsoFiles_clicked();
+
+      void drawInsoIsoTable( QPainter &painter,
+                             QPrinter &printer,
+                             qreal pageWidth,
+                             qreal pageHeight,
+                             qreal bottom,
+                             qreal &y,
+                             int &pageNumber);
+      void generateInsoIsoPDF();
+      void generateCalibratePDF();
+
+      void drawCalibrateTable(
+              QPainter &painter,
+              QPrinter &printer,
+              qreal pageWidth,
+              qreal pageHeight,
+              qreal bottom,
+              qreal &y,
+              int &pageNumber);
+
+      void on_pushButton_selfTestSave_clicked();
 
 public slots:
 
@@ -310,6 +372,8 @@ public slots:
        void onInsulationNetMarkerReceived(int loomNo, int totalNets);
 
 
+
+
 private:
     Ui::MainWindow *ui;
     QSqlDatabase db;
@@ -340,6 +404,7 @@ private:
     bool simulate;
 
     QStandardItemModel *m_twoWireTestModel = nullptr;
+    QStandardItemModel *model =nullptr;
 
     int expectedResults = 0;
 
@@ -349,6 +414,12 @@ private:
 
     //Calibration Test
     QStandardItemModel *m_calibrationModel = nullptr;
+    int failedPinsCount = 0;
+    int failedPinsInso= 0;
+    int failedPinsCalibrate=0;
+
+
+
 
     //Insu/Iso Test Progress bar
     double currentPercentage = 0.0;
