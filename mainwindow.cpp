@@ -1013,20 +1013,33 @@ void MainWindow::on_pushButton_uploadPatch_clicked()
       }
       ui->textEdit_ErrorLog->clear();
       QString tableName =
-                  ui->lineEdit_cableName->text().trimmed() + "_patch";
+              ui->lineEdit_cableName->text().trimmed() + "_patch";
 
-    tableName.replace(" ", "_");
+      tableName.replace(" ", "_");
 
-    // CHECK TABLE EXISTS
-    if(db.tables().contains(tableName))
-    {
-        QMessageBox::warning(
-                    this,
-                    "Table Exists",
-                    "Cable name already exists.");
+      // Check whether the table exists (case-insensitive)
+      QStringList tables = db.tables();
 
-        return;
-    }
+      bool tableExists = false;
+
+      for (const QString &table : tables)
+      {
+          if (table.compare(tableName, Qt::CaseInsensitive) == 0)
+          {
+              tableExists = true;
+              break;
+          }
+      }
+
+      if (tableExists)
+      {
+          QMessageBox::warning(
+              this,
+              "Table Exists",
+              "Cable name already exists.");
+
+          return;
+      }
 
     openCsvFile("patch");
 }
@@ -1048,12 +1061,29 @@ void MainWindow::on_pushButton_uploadCable_clicked()
     tableName.replace(" ", "_");
 
     // CHECK TABLE EXISTS
-    if(db.tables().contains(tableName))
+    QStringList tables = db.tables();
+
+    bool tableExists = false;
+
+    for (const QString &table : tables)
     {
-        QMessageBox::warning(this,"Table Exists", "Cable name already exists");
+        if (table.compare(tableName, Qt::CaseInsensitive) == 0)
+        {
+            tableExists = true;
+            break;
+        }
+    }
+
+    if (tableExists)
+    {
+        QMessageBox::warning(
+            this,
+            "Table Exists",
+            "Cable name already exists.");
 
         return;
     }
+
     openCsvFile("harness");
 }
 void MainWindow::openCsvFile(const QString &fileType)
@@ -1978,29 +2008,42 @@ bool MainWindow::validatePatchLine(int lineNumber,
 QStringList MainWindow::getCableNames()
 {
     QStringList list;
-    list.append("Files");   // First fixed item
+    list.append("Files");  // First fixed item
 
-
-    // Get all tables
     QStringList tables = db.tables();
 
-    QSet<QString> uniqueNames;
+    QSet<QString> patchNames;
+    QSet<QString> harnessNames;
+    QSet<QString> detailsNames;
 
-    for (const QString &t : tables) {
-
-        if (t.endsWith("_patch")) {
-            uniqueNames.insert(t.left(t.length() - 6)); // remove 6 chars "_patch"
+    for (const QString &t : tables)
+    {
+        if (t.endsWith("_patch"))
+        {
+            patchNames.insert(t.left(t.length() - 6));
         }
-        else if (t.endsWith("_harness")) {
-            uniqueNames.insert(t.left(t.length() - 8)); // remove 8 chars "_harness"
+        else if (t.endsWith("_harness"))
+        {
+            harnessNames.insert(t.left(t.length() - 8));
+        }
+        else if (t.endsWith("_details"))
+        {
+            detailsNames.insert(t.left(t.length() - 8));
         }
     }
 
-    // Convert back to list and sort alphabetically
-    QStringList sorted = uniqueNames.values();
-    sorted.sort();
+    // Include only names that have all three tables
+    for (const QString &name : patchNames)
+    {
+        if (harnessNames.contains(name) &&
+            detailsNames.contains(name))
+        {
+            list.append(name);
+        }
+    }
 
-    list.append(sorted);
+    // Sort cable names, keeping "Files" first
+    std::sort(list.begin() + 1, list.end());
 
     return list;
 }
@@ -2073,7 +2116,54 @@ QString MainWindow::convertExcelToCsv(const QString &xlsxFile)
 
 void MainWindow::on_pushButton_backToModes_clicked()
 {
-    ui->stackedWidget->setCurrentIndex(4);
+    QString cableName = ui->lineEdit_cableName->text().trimmed();
+
+    if (!cableName.isEmpty())
+    {
+        cableName.replace(" ", "_");
+
+        QString patchTable = cableName + "_patch";
+        QString harnessTable = cableName + "_harness";
+        QString detailsTable = cableName + "_details";
+
+        QStringList missingTables;
+
+        if (!db.tables().contains(patchTable))
+            missingTables.append("Patch data");
+
+        if (!db.tables().contains(harnessTable))
+            missingTables.append("Harness data");
+
+        if (!db.tables().contains(detailsTable))
+            missingTables.append("Add MetaData");
+
+        if (missingTables.isEmpty())
+        {
+            ui->stackedWidget->setCurrentIndex(4);
+        }
+        else
+        {
+            QMessageBox::information(
+                this,
+                "Incomplete Data",
+                "Please fill in the following missing data for '"
+                    + cableName + "':\n\n"
+                    + missingTables.join("\n")
+            );
+            QMessageBox::StandardButton reply;
+            reply=QMessageBox::question(this,"Leave page","Do you want to leave without filling?");
+            if(reply==QMessageBox::Yes)
+            {
+                  deleteCable(cableName);
+                  ui->stackedWidget->setCurrentIndex(4);
+            }
+        }
+    }
+    else
+    {
+         ui->stackedWidget->setCurrentIndex(4);
+    }
+
 }
 
 void MainWindow::on_pushButton_getDetails_clicked()
@@ -2308,9 +2398,8 @@ void MainWindow::on_pushButton_delCable_clicked()
     reply = QMessageBox::question(this,"Confirm",msg,QMessageBox::Yes|QMessageBox::No);
     if(reply == QMessageBox::Yes)
     {
-        writeToNotes("calling del is problem");
         bool del = deleteCable(selectedFile);
-        writeToNotes("del");
+
         if(del)
         {
             QMessageBox::information(this,"Success","Cable deleted successfully");
@@ -2339,6 +2428,7 @@ bool MainWindow::deleteCable(const QString &cableName)
 
     QString patchTable   = cableName + "_patch";
     QString harnessTable = cableName + "_harness";
+    QString metaDetaTable= cableName + "_details";
     QString relayTable   = cableName + "_relay";
     QString diodeTable   = cableName + "_diode";
 
@@ -2386,6 +2476,13 @@ bool MainWindow::deleteCable(const QString &cableName)
                      q.lastError().text());
         return false;
     }
+    if (!q.exec("DROP TABLE IF EXISTS \"" + metaDetaTable + "\""))
+    {
+        writeToNotes("❌ Failed to drop metaDataTable table: " +
+                     q.lastError().text());
+        return false;
+    }
+
 
     // Drop Relay table
     if (!q.exec("DROP TABLE IF EXISTS \"" + relayTable + "\""))
@@ -6631,7 +6728,7 @@ void MainWindow::on_pushButton_run_clicked()
 
     if(ui->comboBox_files->currentIndex()==0||ui->lineEdit_inspectedBy->text()==""
             ||ui->lineEdit_setNo->text()==""||ui->lineEdit_performedBy->text()==""
-            ||ui->lineEdit_projectName->text()==""||ui->lineEdit_notes->text()==""
+            ||ui->lineEdit_projectName->text()==""||ui->textEdit_notesOutput->toPlainText().isEmpty()
             ||ui->comboBox_test->currentIndex()==0)
     {
         QMessageBox::information(this,"Empty Fields","Please fill all details,select file and choose test");
@@ -9312,8 +9409,8 @@ void MainWindow::drawInsoIsoTable(
 
     // Table column widths
     const qreal proportions[] = {
-        0.055, 0.063, 0.050, 0.175, 0.175,
-        0.142, 0.155, 0.100, 0.085
+        0.055, 0.065, 0.050, 0.175, 0.175,
+        0.140, 0.155, 0.100, 0.085
     }; // Sum = 1.000
 
     qreal colWidths[9];
@@ -9594,10 +9691,23 @@ qreal MainWindow::drawTwoWireTestHeader(
         int failedPinsCount)
 {
     QImage solarLogo(":/new/prefix1/images/solar1.png");
-    QImage drdoLogo(":/new/prefix1/images/drdo.png");
+   // QImage drdoLogo(":/new/prefix1/images/drdo.png");
+    QImage databaseImage;
+
 
     const qreal logoWidth = 105;
     const qreal logoHeight = 75;
+
+    if (!d_imageData.isEmpty() &&
+            databaseImage.loadFromData(d_imageData))
+    {
+        painter.drawImage(
+            QRectF(pageWidth - logoWidth, 0,
+                   logoWidth, logoHeight),
+            databaseImage
+        );
+    }
+
 
     QFont normalFont("Times New Roman", 11);
     QFont boldFont("Times New Roman", 11);
@@ -9613,11 +9723,15 @@ qreal MainWindow::drawTwoWireTestHeader(
         painter.drawImage(QRectF(0, 0, logoWidth, logoHeight),
                           solarLogo);
 
-    if (!drdoLogo.isNull())
-        painter.drawImage(QRectF(pageWidth - logoWidth, 0,
-                                 logoWidth, logoHeight),
-                          drdoLogo);
-
+    if (!d_imageData.isEmpty() &&
+            databaseImage.loadFromData(d_imageData))
+    {
+        painter.drawImage(
+            QRectF(pageWidth - logoWidth, 0,
+                   logoWidth, logoHeight),
+            databaseImage
+        );
+    }
     painter.setPen(Qt::black);
     painter.setFont(companyFont);
 
@@ -9629,9 +9743,10 @@ qreal MainWindow::drawTwoWireTestHeader(
     painter.setFont(titleFont);
 
     painter.drawText(
-        QRectF(0,85, pageWidth, 30),
+        QRectF(0, 85, pageWidth, 30),
         Qt::AlignCenter,
-        "GNC KIT CABLE HARNESS TEST REPORT");
+        d_projectName + " CABLE HARNESS TEST REPORT"
+    );
 
     qreal y = 155;
 
@@ -10070,8 +10185,8 @@ void MainWindow::drawTwoWireTestTable(
 
     // Table column widths
     const qreal proportions[] = {
-        0.055, 0.085, 0.175, 0.065, 0.175,
-        0.075, 0.085, 0.105, 0.080, 0.100
+        0.055, 0.085, 0.175, 0.062, 0.175,
+        0.075, 0.085, 0.108, 0.080, 0.100
     };
 
     qreal colWidths[10];
@@ -10312,7 +10427,7 @@ void MainWindow::drawTwoWireTestFooter(
 {
     Q_UNUSED(printer);
 
-    QString notes = ui->lineEdit_notes->text();
+    QString notes = ui->textEdit_notesOutput->toPlainText();
 
     QFont normalFont("Times New Roman", 11);
     QFont boldFont("Times New Roman", 11);
@@ -10366,11 +10481,29 @@ void MainWindow::drawTwoWireTestFooter(
 
     painter.restore();
 
-    y += notesHeight + 80;
+    y += notesHeight + 70;
+
+    painter.drawText(
+        QRectF(20, y, (pageWidth-40) / 3, 20),
+        Qt::AlignLeft,
+        ui->lineEdit_performedBy->text());
+
+    painter.drawText(
+        QRectF((pageWidth-40) / 3, y, pageWidth / 3, 20),
+        Qt::AlignHCenter,
+        "");
+
+    painter.drawText(
+        QRectF(2 * (pageWidth-40) / 3, y, pageWidth / 3, 20),
+        Qt::AlignRight,
+        ui->lineEdit_inspectedBy->text());
+    y+=20;
+
 
     // Signature headings
     painter.setFont(boldFont);
     painter.setPen(Qt::black);
+
 
     painter.drawText(
         QRectF(20, y, (pageWidth-40) / 3, 20),
@@ -11379,4 +11512,356 @@ void MainWindow::on_pushButton_openTwoWireFiles_clicked()
        // Open the folder in File Explorer
        QDesktopServices::openUrl(
                    QUrl::fromLocalFile(folderPath));
+}
+
+
+void MainWindow::on_pushButton_browseImage_clicked()
+{
+    QString filePath = QFileDialog::getOpenFileName(
+            this,
+            "Select Image",
+            QString(),
+            "Images (*.png *.jpg *.jpeg *.bmp)"
+        );
+
+        if (!filePath.isEmpty())
+        {
+            ui->lineEdit_imagePath->setText(filePath);
+        }
+}
+
+
+bool MainWindow::saveImageDetailsToDb(
+        const QString &cableName,
+        const QString &imagePath,
+        const QString &notes,
+        const QString &testPerformedBy,
+        const QString &inspectedBy,
+        const QString &projectName)
+{
+    QString tableName = cableName.trimmed() + "_details";
+    tableName.replace(" ", "_");
+
+    // Sanitize the dynamic table name
+    for (int i = 0; i < tableName.size(); ++i)
+    {
+        QChar ch = tableName[i];
+
+        if (!ch.isLetterOrNumber() && ch != '_')
+            tableName[i] = '_';
+    }
+
+    if (cableName.trimmed().isEmpty())
+    {
+        QString error = "Failed: Cable name is empty.";
+        writeToNotes(error);
+        ui->textEdit_ErrorLog->append(error);
+        return false;
+    }
+
+    // Read the selected image
+    QFile file(imagePath);
+
+    if (imagePath.trimmed().isEmpty() ||
+            !file.open(QIODevice::ReadOnly))
+    {
+        QString error = "Failed to open image: " + imagePath;
+        writeToNotes(error);
+        ui->textEdit_ErrorLog->append(error);
+        return false;
+    }
+
+    QByteArray imageData = file.readAll();
+    file.close();
+
+    if (imageData.isEmpty())
+    {
+        QString error = "Selected image is empty.";
+        writeToNotes(error);
+        ui->textEdit_ErrorLog->append(error);
+        return false;
+    }
+
+    // Create table
+    QSqlQuery createQuery(db);
+
+    QString create =
+            "CREATE TABLE IF NOT EXISTS \"" + tableName + "\" ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "cable_name TEXT, "
+            "image_data BLOB, "
+            "notes TEXT, "
+            "test_performed_by TEXT, "
+            "inspected_by TEXT, "
+            "project_name TEXT"
+            ")";
+
+    if (!createQuery.exec(create))
+    {
+        QString error = "Failed to create table " + tableName
+                + ": " + createQuery.lastError().text();
+
+        writeToNotes(error);
+        ui->textEdit_ErrorLog->append(error);
+        return false;
+    }
+
+    // Start transaction
+    if (!db.transaction())
+    {
+        QString error = "Failed to start transaction: "
+                + db.lastError().text();
+
+        writeToNotes(error);
+        ui->textEdit_ErrorLog->append(error);
+        return false;
+    }
+
+    // Clear previous data
+    QSqlQuery deleteQuery(db);
+
+    if (!deleteQuery.exec(
+                "DELETE FROM \"" + tableName + "\""))
+    {
+        db.rollback();
+
+        QString error = "Failed to clear table " + tableName
+                + ": " + deleteQuery.lastError().text();
+
+        writeToNotes(error);
+        ui->textEdit_ErrorLog->append(error);
+        return false;
+    }
+    QSqlQuery checkQuery(db);
+
+    if (checkQuery.exec("PRAGMA table_info(\"" + tableName + "\")"))
+    {
+        while (checkQuery.next())
+        {
+            qDebug() << "Column:"
+                     << checkQuery.value("name").toString();
+        }
+    }
+    // Insert data
+    QSqlQuery insertQuery(db);
+
+    insertQuery.prepare(
+                "INSERT INTO \"" + tableName + "\" "
+                "(cable_name, image_data, notes, "
+                "test_performed_by, inspected_by, project_name) "
+                "VALUES (?, ?, ?, ?, ?, ?)");
+
+    insertQuery.addBindValue(cableName);
+    insertQuery.addBindValue(imageData);
+    insertQuery.addBindValue(notes);
+    insertQuery.addBindValue(testPerformedBy);
+    insertQuery.addBindValue(inspectedBy);
+    insertQuery.addBindValue(projectName);
+
+    if (!insertQuery.exec())
+    {
+        db.rollback();
+
+        QString error = "Insert failed in " + tableName
+                + ": " + insertQuery.lastError().text();
+
+        writeToNotes(error);
+        ui->textEdit_ErrorLog->append(error);
+        return false;
+    }
+
+    // Commit transaction
+    if (!db.commit())
+    {
+        QString error = "Failed to commit transaction: "
+                + db.lastError().text();
+
+        db.rollback();
+
+        writeToNotes(error);
+        ui->textEdit_ErrorLog->append(error);
+        return false;
+    }
+
+    QString message =
+            "Image details stored in table: " + tableName;
+
+    writeToNotes(message);
+    ui->textEdit_ErrorLog->append(message);
+
+    return true;
+}
+
+void MainWindow::on_pushButton_addMetaData_clicked()
+{
+
+    if(ui->lineEdit_cableName->text()=="")
+    {
+        QMessageBox::information(this,"Empty Cable Name",
+                                 "Please Enter the cable name");
+        return;
+    }
+    if(ui->textEdit_notes->toPlainText()==""|| ui->lineEdit_imagePath->text()==""
+            ||ui->lineEdit_testPerformedInput->text()==""||ui->lineEdit_inspectedByInput->text()==""||
+            ui->lineEdit_projectNameInput->text()=="")
+    {
+        QMessageBox::information(this,"Empty Fields","Fill all the fields");
+        return;
+    }
+    if(ui->lineEdit_cableName->text().trimmed().isEmpty())
+    {
+        QMessageBox::information(this,"Field Empty","Enter cable name");
+        return;
+    }
+    ui->textEdit_ErrorLog->clear();
+    QString tableName =
+            ui->lineEdit_cableName->text().trimmed() + "_details";
+
+    tableName.replace(" ", "_");
+    QStringList tables = db.tables();
+
+    bool tableExists = false;
+
+    for (const QString &table : tables)
+    {
+        if (table.compare(tableName, Qt::CaseInsensitive) == 0)
+        {
+            tableExists = true;
+            break;
+        }
+    }
+
+    if (tableExists)
+    {
+        QMessageBox::warning(
+            this,
+            "Table Exists",
+            "Cable name already exists.");
+
+        return;
+    }
+
+
+    bool success = saveImageDetailsToDb(
+            ui->lineEdit_cableName->text(),
+            ui->lineEdit_imagePath->text(),
+            ui->textEdit_notes->toPlainText(),
+            ui->lineEdit_testPerformedInput->text(),
+            ui->lineEdit_inspectedByInput->text(),
+            ui->lineEdit_projectNameInput->text()
+        );
+
+        if (success)
+        {
+            ui->comboBox_fileNames->clear();
+            ui->comboBox_fileNames->addItems(getCableNames());
+            QMessageBox::information(
+                this,
+                "Success",
+                "Data saved successfully."
+            );
+        }
+}
+
+
+void MainWindow::on_comboBox_files_currentTextChanged(const QString &arg1)
+{
+
+
+
+    QString table = arg1.trimmed();
+
+    if (table.isEmpty())
+        return;
+
+    // Generate the table name
+    QString tableName = table + "_details";
+
+    tableName.replace(" ", "_");
+
+//    // Sanitize table name, matching your save function
+//    for (int i = 0; i < tableName.size(); ++i)
+//    {
+//        QChar ch = tableName[i];
+
+//        if (!ch.isLetterOrNumber() && ch != '_')
+//            tableName[i] = '_';
+//    }
+
+    QSqlQuery q(db);
+
+    // Check whether the table exists
+    q.prepare(
+                "SELECT name FROM sqlite_master "
+                "WHERE type = 'table' AND name = ?"
+                );
+
+    q.addBindValue(tableName);
+
+    if (!q.exec())
+    {
+        writeToNotes("Failed to check table: "
+                     + q.lastError().text());
+        return;
+    }
+
+    if (!q.next())
+    {
+        writeToNotes("Table does not exist: " + tableName);
+        return;
+    }
+
+    // Extract the stored information
+    QString sql =
+            "SELECT project_name, image_data, notes, "
+            "test_performed_by, inspected_by "
+            "FROM \"" + tableName + "\" "
+                                    "ORDER BY id DESC LIMIT 1";
+
+    if (!q.exec(sql))
+    {
+        writeToNotes("Failed to retrieve data from "
+                     + tableName + ": "
+                     + q.lastError().text());
+        return;
+    }
+
+    if (q.next())
+    {
+        d_projectName = q.value("project_name").toString();
+        d_imageData = q.value("image_data").toByteArray();
+        d_notes = q.value("notes").toString();
+        d_testPerformedBy =
+                q.value("test_performed_by").toString();
+        d_inspectedBy =
+                q.value("inspected_by").toString();
+        ui->lineEdit_projectName->setText(d_projectName);
+        ui->lineEdit_inspectedBy->setText(d_inspectedBy);
+        ui->lineEdit_performedBy->setText(d_testPerformedBy);
+        ui->textEdit_notesOutput->setPlainText(d_notes);
+        QPixmap pixmap;
+
+        if (pixmap.loadFromData(d_imageData))
+        {
+            ui->label_image->setPixmap(
+                pixmap.scaled(
+                    ui->label_image->size(),
+                    Qt::KeepAspectRatio,
+                    Qt::SmoothTransformation
+                )
+            );
+        }
+        else
+        {
+            ui->label_image->clear();
+            writeToNotes("Failed to load image from database.");
+        }
+
+        writeToNotes("Data loaded from table: " + tableName);
+    }
+    else
+    {
+        writeToNotes("Table exists, but contains no records: "
+                     + tableName);
+    }
 }

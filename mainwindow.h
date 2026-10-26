@@ -439,6 +439,21 @@ private slots:
 
        void on_pushButton_openTwoWireFiles_clicked();
 
+       void on_pushButton_browseImage_clicked();
+
+       bool saveImageDetailsToDb(
+               const QString &cableName,
+               const QString &imagePath,
+               const QString &notes,
+               const QString &testPerformedBy,
+               const QString &inspectedBy,
+               const QString &projectName);
+       void on_pushButton_addMetaData_clicked();
+
+
+
+       void on_comboBox_files_currentTextChanged(const QString &arg1);
+
 public slots:
 
       void portStatus(const QString &data);
@@ -448,6 +463,7 @@ public slots:
       bool checkTwoWireExpected(
               float measuredOhms,
               const QString &expected);
+
 
       QString formatTwoWireExpected(
               const QString &expected);
@@ -565,6 +581,12 @@ private:
 
     int failedDiodeCount = 0;
     int failedRelayCount = 0;
+
+    QByteArray d_imageData;
+    QString d_projectName;
+    QString d_notes;
+    QString d_testPerformedBy;
+    QString d_inspectedBy;
 
 };
 
