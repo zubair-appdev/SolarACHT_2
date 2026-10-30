@@ -50,7 +50,7 @@
       </property>
       <property name="font">
        <font>
-        <pointsize>12</pointsize>
+        <pointsize>6</pointsize>
         <weight>75</weight>
         <bold>true</bold>
        </font>
@@ -62,7 +62,7 @@
     gridline-color: #d9d9d9;</string>
       </property>
       <property name="currentIndex">
-       <number>12</number>
+       <number>4</number>
       </property>
       <widget class="QWidget" name="page">
        <layout class="QGridLayout" name="gridLayout_2">
@@ -3953,12 +3953,75 @@ QPushButton:pressed
            </widget>
           </item>
          </layout>
+             </property>
+             <property name="text">
+              <string>Back</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="1" column="2">
+         <spacer name="horizontalSpacer_22">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeType">
+           <enum>QSizePolicy::Expanding</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>170</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item row="3" column="0" colspan="3">
+         <widget class="QTextEdit" name="textEdit_ErrorLog">
+          <property name="font">
+           <font>
+            <pointsize>11</pointsize>
+           </font>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="label_10">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="font">
+           <font>
+            <pointsize>11</pointsize>
+           </font>
+          </property>
+          <property name="text">
+           <string>Error Log</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="2">
+         <widget class="QPushButton" name="pushButton_clearErrorLog">
+          <property name="font">
+           <font>
+            <pointsize>11</pointsize>
+           </font>
+          </property>
+          <property name="text">
+           <string>Clear Log</string>
+          </property>
+         </widget>
         </item>
        </layout>
       </widget>
       <widget class="QWidget" name="page_patchHarnessData">
        <layout class="QGridLayout" name="gridLayout_14">
-        <item row="1" column="0">
+        <item row="0" column="0">
          <widget class="QTabWidget" name="tabWidget">
           <property name="font">
            <font>
@@ -3971,8 +4034,11 @@ QPushButton:pressed
     color: rgb(0, 0, 0);
 }</string>
           </property>
+          <property name="tabPosition">
+           <enum>QTabWidget::North</enum>
+          </property>
           <property name="tabShape">
-           <enum>QTabWidget::Triangular</enum>
+           <enum>QTabWidget::Rounded</enum>
           </property>
           <property name="currentIndex">
            <number>1</number>
@@ -4000,7 +4066,7 @@ QPushButton:pressed
              </widget>
             </item>
             <item>
-             <widget class="QTableView" name="tableView_patch">
+             <widget class="CustomTableView" name="tableView_patch">
               <property name="styleSheet">
                <string notr="true">QTableView
 {
@@ -4099,6 +4165,166 @@ QScrollBar::sub-page:horizontal
             </item>
             <item>
              <layout class="QHBoxLayout" name="horizontalLayout_7">
+              <item>
+               <widget class="QPushButton" name="pushButton_addPatchRow">
+                <property name="minimumSize">
+                 <size>
+                  <width>101</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QPushButton
+{
+    background-color: #28A745;
+    color: white;
+
+    border: 1px solid #FB8C00;
+    border-radius: 10px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
+}
+
+QPushButton:hover
+{
+    background-color: #FFB74D;
+}
+
+QPushButton:pressed
+{
+    background-color: #F57C00;
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+                </property>
+                <property name="text">
+                 <string>ADD</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_delPatchRow">
+                <property name="minimumSize">
+                 <size>
+                  <width>101</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QPushButton
+{
+    background-color:#DC3545;
+    color: white;
+
+    border: 1px solid #FB8C00;
+    border-radius: 10px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
+}
+
+QPushButton:hover
+{
+    background-color: #FFB74D;
+}
+
+QPushButton:pressed
+{
+    background-color: #F57C00;
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+                </property>
+                <property name="text">
+                 <string>DELETE</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_importPatch">
+                <property name="minimumSize">
+                 <size>
+                  <width>101</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QPushButton
+{
+    background-color: #28A745;
+    color: white;
+
+    border: 1px solid #FB8C00;
+    border-radius: 10px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
+}
+
+QPushButton:hover
+{
+    background-color: #FFB74D;
+}
+
+QPushButton:pressed
+{
+    background-color: #F57C00;
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+                </property>
+                <property name="text">
+                 <string>IMPORT</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_exportPatch">
+                <property name="minimumSize">
+                 <size>
+                  <width>101</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QPushButton
+{
+    background-color:#DC3545;
+    color: white;
+
+    border: 1px solid #FB8C00;
+    border-radius: 10px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
+}
+
+QPushButton:hover
+{
+    background-color: #FFB74D;
+}
+
+QPushButton:pressed
+{
+    background-color: #F57C00;
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+                </property>
+                <property name="text">
+                 <string>EXPORT</string>
+                </property>
+               </widget>
+              </item>
               <item>
                <spacer name="horizontalSpacer_27">
                 <property name="orientation">
@@ -4257,6 +4483,7 @@ QPushButton:pressed
              <layout class="QVBoxLayout" name="verticalLayout_19">
               <item>
                <widget class="CalibrationTableView" name="tableView_harness">
+               <widget class="CustomTableView" name="tableView_harness">
                 <property name="styleSheet">
                  <string notr="true">QTableView
 {
@@ -4446,7 +4673,87 @@ QPushButton:pressed
 }</string>
                   </property>
                   <property name="text">
-                   <string>Delete</string>
+                   <string>DELETE</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="pushButton_importHarness">
+                  <property name="minimumSize">
+                   <size>
+                    <width>101</width>
+                    <height>35</height>
+                   </size>
+                  </property>
+                  <property name="styleSheet">
+                   <string notr="true">QPushButton
+{
+    background-color: #28A745;
+    color: white;
+
+    border: 1px solid #FB8C00;
+    border-radius: 10px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
+}
+
+QPushButton:hover
+{
+    background-color: #FFB74D;
+}
+
+QPushButton:pressed
+{
+    background-color: #F57C00;
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+                  </property>
+                  <property name="text">
+                   <string>IMPORT</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="pushButton_exportHarness">
+                  <property name="minimumSize">
+                   <size>
+                    <width>101</width>
+                    <height>35</height>
+                   </size>
+                  </property>
+                  <property name="styleSheet">
+                   <string notr="true">QPushButton
+{
+    background-color:#DC3545;
+    color: white;
+
+    border: 1px solid #FB8C00;
+    border-radius: 10px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
+}
+
+QPushButton:hover
+{
+    background-color: #FFB74D;
+}
+
+QPushButton:pressed
+{
+    background-color: #F57C00;
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+                  </property>
+                  <property name="text">
+                   <string>EXPORT</string>
                   </property>
                  </widget>
                 </item>
@@ -4612,8 +4919,8 @@ QPushButton:pressed
             <string>Diode</string>
            </attribute>
            <layout class="QGridLayout" name="gridLayout_21">
-            <item row="0" column="0">
-             <widget class="QTableView" name="tableView_diode">
+            <item row="1" column="0">
+             <widget class="CustomTableView" name="tableView_diode">
               <property name="styleSheet">
                <string notr="true">QTableView
 {
@@ -4724,6 +5031,336 @@ QScrollBar::sub-page:horizontal
                <number>24</number>
               </attribute>
              </widget>
+            </item>
+            <item row="0" column="0">
+             <widget class="QLabel" name="label_fileName_diode">
+              <property name="font">
+               <font>
+                <pointsize>12</pointsize>
+               </font>
+              </property>
+              <property name="styleSheet">
+               <string notr="true">border:none;</string>
+              </property>
+              <property name="text">
+               <string>TextLabel</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="0">
+             <layout class="QHBoxLayout" name="horizontalLayout_26">
+              <item>
+               <widget class="QPushButton" name="pushButton_addDiodeRow">
+                <property name="minimumSize">
+                 <size>
+                  <width>101</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QPushButton
+{
+    background-color: #28A745;
+    color: white;
+
+    border: 1px solid #FB8C00;
+    border-radius: 10px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
+}
+
+QPushButton:hover
+{
+    background-color: #FFB74D;
+}
+
+QPushButton:pressed
+{
+    background-color: #F57C00;
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+                </property>
+                <property name="text">
+                 <string>ADD</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_delDiodeRow">
+                <property name="minimumSize">
+                 <size>
+                  <width>101</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QPushButton
+{
+    background-color:#DC3545;
+    color: white;
+
+    border: 1px solid #FB8C00;
+    border-radius: 10px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
+}
+
+QPushButton:hover
+{
+    background-color: #FFB74D;
+}
+
+QPushButton:pressed
+{
+    background-color: #F57C00;
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+                </property>
+                <property name="text">
+                 <string>DELETE</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_importDiode">
+                <property name="minimumSize">
+                 <size>
+                  <width>101</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QPushButton
+{
+    background-color: #28A745;
+    color: white;
+
+    border: 1px solid #FB8C00;
+    border-radius: 10px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
+}
+
+QPushButton:hover
+{
+    background-color: #FFB74D;
+}
+
+QPushButton:pressed
+{
+    background-color: #F57C00;
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+                </property>
+                <property name="text">
+                 <string>IMPORT</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_exportDiode">
+                <property name="minimumSize">
+                 <size>
+                  <width>101</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QPushButton
+{
+    background-color:#DC3545;
+    color: white;
+
+    border: 1px solid #FB8C00;
+    border-radius: 10px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
+}
+
+QPushButton:hover
+{
+    background-color: #FFB74D;
+}
+
+QPushButton:pressed
+{
+    background-color: #F57C00;
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+                </property>
+                <property name="text">
+                 <string>EXPORT</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="horizontalSpacer_53">
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+                <property name="sizeType">
+                 <enum>QSizePolicy::MinimumExpanding</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_editTableViewDiode">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>101</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QPushButton
+{
+    background-color: #FFA726;
+    color: white;
+
+    border: 1px solid #FB8C00;
+    border-radius: 10px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
+}
+
+QPushButton:hover
+{
+    background-color: #FFB74D;
+}
+
+QPushButton:pressed
+{
+    background-color: #F57C00;
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+                </property>
+                <property name="text">
+                 <string>EDIT</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_saveChangesDiode">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>101</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QPushButton
+{
+    background:rgb(62, 188, 48);
+    border: none;
+    border-radius: 10px;
+    padding: 8px;
+    font-weight: bold;
+    color:white;
+}
+
+QPushButton:hover
+{
+    background:rgb(170, 255, 127);
+}
+
+QPushButton:pressed
+{
+    background:#fdffc6;
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+                </property>
+                <property name="text">
+                 <string>SAVE</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_revertChangesDiode">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>101</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QPushButton
+{
+    background-color: #546E7A;
+    color: white;
+
+    border: 1px solid #455A64;
+    border-radius: 10px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
+}
+
+QPushButton:hover
+{
+    background-color: #607D8B;
+}
+
+QPushButton:pressed
+{
+    background-color: #455A64;
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+                </property>
+                <property name="text">
+                 <string>CANCEL</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
             </item>
            </layout>
           </widget>
@@ -4732,8 +5369,8 @@ QScrollBar::sub-page:horizontal
             <string>Relay</string>
            </attribute>
            <layout class="QGridLayout" name="gridLayout_22">
-            <item row="0" column="0">
-             <widget class="QTableView" name="tableView_Relay">
+            <item row="1" column="0">
+             <widget class="CustomTableView" name="tableView_Relay">
               <property name="styleSheet">
                <string notr="true">QTableView
 {
@@ -4845,13 +5482,392 @@ QScrollBar::sub-page:horizontal
               </attribute>
              </widget>
             </item>
+            <item row="0" column="0">
+             <widget class="QLabel" name="label_fileName_relay">
+              <property name="font">
+               <font>
+                <pointsize>12</pointsize>
+               </font>
+              </property>
+              <property name="styleSheet">
+               <string notr="true">border:none;</string>
+              </property>
+              <property name="text">
+               <string>TextLabel</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="0">
+             <layout class="QHBoxLayout" name="horizontalLayout_27">
+              <item>
+               <widget class="QPushButton" name="pushButton_addRelayRow">
+                <property name="minimumSize">
+                 <size>
+                  <width>101</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QPushButton
+{
+    background-color: #28A745;
+    color: white;
+
+    border: 1px solid #FB8C00;
+    border-radius: 10px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
+}
+
+QPushButton:hover
+{
+    background-color: #FFB74D;
+}
+
+QPushButton:pressed
+{
+    background-color: #F57C00;
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+                </property>
+                <property name="text">
+                 <string>ADD</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_delRelayRow">
+                <property name="minimumSize">
+                 <size>
+                  <width>101</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QPushButton
+{
+    background-color:#DC3545;
+    color: white;
+
+    border: 1px solid #FB8C00;
+    border-radius: 10px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
+}
+
+QPushButton:hover
+{
+    background-color: #FFB74D;
+}
+
+QPushButton:pressed
+{
+    background-color: #F57C00;
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+                </property>
+                <property name="text">
+                 <string>DELETE</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_impotRelay">
+                <property name="minimumSize">
+                 <size>
+                  <width>101</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QPushButton
+{
+    background-color: #28A745;
+    color: white;
+
+    border: 1px solid #FB8C00;
+    border-radius: 10px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
+}
+
+QPushButton:hover
+{
+    background-color: #FFB74D;
+}
+
+QPushButton:pressed
+{
+    background-color: #F57C00;
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+                </property>
+                <property name="text">
+                 <string>IMPORT</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_exportRelay">
+                <property name="minimumSize">
+                 <size>
+                  <width>101</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QPushButton
+{
+    background-color:#DC3545;
+    color: white;
+
+    border: 1px solid #FB8C00;
+    border-radius: 10px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
+}
+
+QPushButton:hover
+{
+    background-color: #FFB74D;
+}
+
+QPushButton:pressed
+{
+    background-color: #F57C00;
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+                </property>
+                <property name="text">
+                 <string>EXPORT</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="horizontalSpacer_54">
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+                <property name="sizeType">
+                 <enum>QSizePolicy::MinimumExpanding</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_editTableViewRelay">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>101</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QPushButton
+{
+    background-color: #FFA726;
+    color: white;
+
+    border: 1px solid #FB8C00;
+    border-radius: 10px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
+}
+
+QPushButton:hover
+{
+    background-color: #FFB74D;
+}
+
+QPushButton:pressed
+{
+    background-color: #F57C00;
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+                </property>
+                <property name="text">
+                 <string>EDIT</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_saveChangesRelay">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>101</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QPushButton
+{
+    background:rgb(62, 188, 48);
+    border: none;
+    border-radius: 10px;
+    padding: 8px;
+    font-weight: bold;
+    color:white;
+}
+
+QPushButton:hover
+{
+    background:rgb(170, 255, 127);
+}
+
+QPushButton:pressed
+{
+    background:#fdffc6;
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+                </property>
+                <property name="text">
+                 <string>SAVE</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_revertChangesRelay">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>101</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QPushButton
+{
+    background-color: #546E7A;
+    color: white;
+
+    border: 1px solid #455A64;
+    border-radius: 10px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
+}
+
+QPushButton:hover
+{
+    background-color: #607D8B;
+}
+
+QPushButton:pressed
+{
+    background-color: #455A64;
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+                </property>
+                <property name="text">
+                 <string>CANCEL</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
            </layout>
           </widget>
-          <widget class="QWidget" name="tab">
-           <attribute name="title">
-            <string>Back</string>
-           </attribute>
-          </widget>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QPushButton" name="pushButton_backFromGetDetails">
+          <property name="font">
+           <font>
+            <pointsize>10</pointsize>
+            <weight>75</weight>
+            <bold>true</bold>
+           </font>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">QPushButton
+{
+    background: qlineargradient(
+        x1:0, y1:0,
+        x2:1, y2:0,
+        stop:0 #616161,
+        stop:1 #424242
+    );
+
+    color: white;
+    border: 1px solid #2c2c2c;
+    border-radius: 10px;
+    padding: 8px;
+    font-weight: bold;
+}
+
+QPushButton:hover
+{
+    background: qlineargradient(
+        x1:0, y1:0,
+        x2:1, y2:0,
+        stop:0 #757575,
+        stop:1 #545454
+    );
+}
+
+QPushButton:pressed
+{
+    background: qlineargradient(
+        x1:0, y1:0,
+        x2:1, y2:0,
+        stop:0 #4a4a4a,
+        stop:1 #303030
+    );
+
+    padding-top: 10px;
+    padding-left: 10px;
+}</string>
+          </property>
+          <property name="text">
+           <string>Back</string>
+          </property>
          </widget>
         </item>
        </layout>
@@ -5361,9 +6377,6 @@ QScrollBar::sub-page:horizontal
                  <pointsize>10</pointsize>
                 </font>
                </property>
-               <property name="toolTip">
-                <string>Range : 0 - 1000V</string>
-               </property>
                <property name="suffix">
                 <string> Ω</string>
                </property>
@@ -5532,7 +6545,31 @@ QPushButton:pressed
              </font>
             </property>
             <property name="text">
-             <string>TextLabel</string>
+             <string>Two Wire Test</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="checkBox_adjustTwoWireColumns">
+            <property name="font">
+             <font>
+              <pointsize>10</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Adjust Columns</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="checkBox_editRemarksTwoWire">
+            <property name="font">
+             <font>
+              <pointsize>10</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Edit Remarks</string>
             </property>
            </widget>
           </item>
@@ -5555,7 +6592,7 @@ QPushButton:pressed
          </layout>
         </item>
         <item row="1" column="0">
-         <widget class="QTableView" name="tableView_twoWireTest">
+         <widget class="TestTableViewsRemarks" name="tableView_twoWireTest">
           <property name="styleSheet">
            <string notr="true">QScrollBar:vertical
 {
@@ -5968,6 +7005,9 @@ QPushButton:disabled {
               <pointsize>12</pointsize>
              </font>
             </property>
+            <property name="styleSheet">
+             <string notr="true"/>
+            </property>
             <property name="readOnly">
              <bool>true</bool>
             </property>
@@ -5979,6 +7019,9 @@ QPushButton:disabled {
              <font>
               <pointsize>12</pointsize>
              </font>
+            </property>
+            <property name="styleSheet">
+             <string notr="true"/>
             </property>
             <property name="readOnly">
              <bool>true</bool>
@@ -5992,6 +7035,9 @@ QPushButton:disabled {
               <pointsize>12</pointsize>
              </font>
             </property>
+            <property name="styleSheet">
+             <string notr="true"/>
+            </property>
             <property name="readOnly">
              <bool>true</bool>
             </property>
@@ -6003,6 +7049,9 @@ QPushButton:disabled {
              <font>
               <pointsize>12</pointsize>
              </font>
+            </property>
+            <property name="styleSheet">
+             <string notr="true"/>
             </property>
             <property name="readOnly">
              <bool>true</bool>
@@ -6016,6 +7065,9 @@ QPushButton:disabled {
               <pointsize>12</pointsize>
              </font>
             </property>
+            <property name="styleSheet">
+             <string notr="true"/>
+            </property>
             <property name="readOnly">
              <bool>true</bool>
             </property>
@@ -6027,6 +7079,9 @@ QPushButton:disabled {
              <font>
               <pointsize>12</pointsize>
              </font>
+            </property>
+            <property name="styleSheet">
+             <string notr="true"/>
             </property>
             <property name="readOnly">
              <bool>true</bool>
@@ -6056,6 +7111,9 @@ QPushButton:disabled {
              <font>
               <pointsize>12</pointsize>
              </font>
+            </property>
+            <property name="styleSheet">
+             <string notr="true"/>
             </property>
             <property name="readOnly">
              <bool>true</bool>
@@ -6103,6 +7161,9 @@ QPushButton:disabled {
               <pointsize>12</pointsize>
              </font>
             </property>
+            <property name="styleSheet">
+             <string notr="true"/>
+            </property>
             <property name="readOnly">
              <bool>true</bool>
             </property>
@@ -6148,6 +7209,9 @@ QPushButton:disabled {
              <font>
               <pointsize>12</pointsize>
              </font>
+            </property>
+            <property name="styleSheet">
+             <string notr="true"/>
             </property>
             <property name="readOnly">
              <bool>true</bool>
@@ -6229,6 +7293,9 @@ QPushButton:disabled {
               <pointsize>12</pointsize>
              </font>
             </property>
+            <property name="styleSheet">
+             <string notr="true"/>
+            </property>
             <property name="readOnly">
              <bool>true</bool>
             </property>
@@ -6240,6 +7307,9 @@ QPushButton:disabled {
              <font>
               <pointsize>12</pointsize>
              </font>
+            </property>
+            <property name="styleSheet">
+             <string notr="true"/>
             </property>
             <property name="readOnly">
              <bool>true</bool>
@@ -6270,6 +7340,9 @@ QPushButton:disabled {
               <pointsize>12</pointsize>
              </font>
             </property>
+            <property name="styleSheet">
+             <string notr="true"/>
+            </property>
             <property name="readOnly">
              <bool>true</bool>
             </property>
@@ -6281,6 +7354,9 @@ QPushButton:disabled {
              <font>
               <pointsize>12</pointsize>
              </font>
+            </property>
+            <property name="styleSheet">
+             <string notr="true"/>
             </property>
             <property name="readOnly">
              <bool>true</bool>
@@ -6294,6 +7370,9 @@ QPushButton:disabled {
               <pointsize>12</pointsize>
              </font>
             </property>
+            <property name="styleSheet">
+             <string notr="true"/>
+            </property>
             <property name="readOnly">
              <bool>true</bool>
             </property>
@@ -6305,6 +7384,9 @@ QPushButton:disabled {
              <font>
               <pointsize>12</pointsize>
              </font>
+            </property>
+            <property name="styleSheet">
+             <string notr="true"/>
             </property>
             <property name="readOnly">
              <bool>true</bool>
@@ -6706,7 +7788,7 @@ QScrollBar::sub-page:horizontal
       <widget class="QWidget" name="page_InsuIsoTEst">
        <layout class="QGridLayout" name="gridLayout_20">
         <item row="1" column="0">
-         <widget class="QTableView" name="tableView_InsuIso">
+         <widget class="TestTableViewsRemarks" name="tableView_InsuIso">
           <property name="styleSheet">
            <string notr="true">QScrollBar:vertical
 {
@@ -6999,7 +8081,31 @@ QPushButton:disabled {
              </font>
             </property>
             <property name="text">
-             <string>TextLabel</string>
+             <string>InsuIsoTest</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="checkBox_adjustInsuIsoColumns">
+            <property name="font">
+             <font>
+              <pointsize>10</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Adjust Columns</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="checkBox_editRemarksIsoInsu">
+            <property name="font">
+             <font>
+              <pointsize>10</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Edit Remarks</string>
             </property>
            </widget>
           </item>
@@ -7052,6 +8158,64 @@ QProgressBar::chunk {
       </widget>
       <widget class="QWidget" name="page_diodeTest">
        <layout class="QGridLayout" name="gridLayout_23">
+        <item row="0" column="0">
+         <layout class="QHBoxLayout" name="horizontalLayout_23">
+          <item>
+           <widget class="QLabel" name="label_test_Diode">
+            <property name="font">
+             <font>
+              <pointsize>10</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Diode</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="checkBox_adjustDiodeColumns">
+            <property name="font">
+             <font>
+              <pointsize>10</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Adjust Columns</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="checkBox_editRemarksDiode">
+            <property name="font">
+             <font>
+              <pointsize>10</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Edit Remarks</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_48">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Minimum</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </item>
         <item row="3" column="0">
          <layout class="QHBoxLayout" name="horizontalLayout_22">
           <item>
@@ -7268,7 +8432,7 @@ QPushButton:disabled {
          </layout>
         </item>
         <item row="1" column="0">
-         <widget class="QTableView" name="tableView_diodeTest">
+         <widget class="TestTableViewsRemarks" name="tableView_diodeTest">
           <property name="styleSheet">
            <string notr="true">QScrollBar:vertical
 {
@@ -7334,40 +8498,6 @@ QScrollBar::sub-page:horizontal
           </property>
          </widget>
         </item>
-        <item row="0" column="0">
-         <layout class="QHBoxLayout" name="horizontalLayout_23">
-          <item>
-           <widget class="QLabel" name="label_test_Diode">
-            <property name="font">
-             <font>
-              <pointsize>10</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Diode</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <spacer name="horizontalSpacer_48">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeType">
-             <enum>QSizePolicy::Minimum</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-         </layout>
-        </item>
         <item row="2" column="0">
          <widget class="QProgressBar" name="progressBar_DiodeTest">
           <property name="styleSheet">
@@ -7416,6 +8546,30 @@ QProgressBar::chunk {
            </widget>
           </item>
           <item>
+           <widget class="QCheckBox" name="checkBox_adjustRelayColumns">
+            <property name="font">
+             <font>
+              <pointsize>10</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Adjust Columns</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="checkBox_editRemarksRelay">
+            <property name="font">
+             <font>
+              <pointsize>10</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Edit Remarks</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <spacer name="horizontalSpacer_49">
             <property name="orientation">
              <enum>Qt::Horizontal</enum>
@@ -7434,7 +8588,7 @@ QProgressBar::chunk {
          </layout>
         </item>
         <item row="1" column="0">
-         <widget class="QTableView" name="tableView_relay">
+         <widget class="TestTableViewsRemarks" name="tableView_relay">
           <property name="styleSheet">
            <string notr="true">QScrollBar:vertical
 {
@@ -7765,6 +8919,16 @@ QPushButton:disabled {
    <class>CalibrationTableView</class>
    <extends>QTableView</extends>
    <header location="global">calibrationtableview.h</header>
+  </customwidget>
+  <customwidget>
+   <class>CustomTableView</class>
+   <extends>QTableView</extends>
+   <header>customtableview.h</header>
+  </customwidget>
+  <customwidget>
+   <class>TestTableViewsRemarks</class>
+   <extends>QTableView</extends>
+   <header>testtableviewsremarks.h</header>
   </customwidget>
  </customwidgets>
  <resources>

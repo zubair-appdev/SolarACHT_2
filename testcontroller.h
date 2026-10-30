@@ -10,6 +10,8 @@
 #include <QTimer>
 #include <QApplication>
 
+#include <QElapsedTimer>
+
 class MainWindow;
 class TestController:public QObject
 {
@@ -23,6 +25,9 @@ public:
     bool isConnected() const;
     void setLogger(MainWindow *logger);
     bool mapLogicalToHardware(const QVariantList &patchData,const QVariantList &harnessData);
+
+
+    QString detectDevicePort();
 
     inline const QVector<QString>& get_Cable() const
     {
@@ -185,6 +190,8 @@ public:
                m_waitingForRelayResults;
     }
 
+    // public:
+    void skipRelayResultRows(int count);
 
 private slots:
     void onReadyRead();
@@ -243,6 +250,8 @@ signals:
     void relayResultReceived(int row, float measuredValue);
     void relayResultsCompleted();
 
+    // signals:
+    void relayNackReceived(quint8 relayId, int resultIndex);
 
 
 

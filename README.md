@@ -94,4 +94,19 @@ Ver 3.3 ------------------------------------------------------------------------
 Ver 3.4 -----------------------------------------------------------------------------------
 - Relay Test Simulation completed need to give actual run and implement 24 24 condition.
 
+Ver 3.5 ----------------------------------------------------------------------------------
+- All PDFs generation Merge Implemented.
+
+Ver 3.6 -----------------------------------------------------------------------------------
+- Relay test edge cases handled.
+
+Ver 3.7 -----------------------------------------------------------------------------------
+- Small GUI Changes hiding elements and removing negatives in resistances.
+
+Ver 3.8 ----------------------------------------------------------------------------------
+- Completed Get Details All Tables Buttons and Edit Strategy.
+
+Ver 3.9 ----------------------------------------------------------------------------------
+- Test Table Views Adjust Column and Edit Remarks Implemented.
+
 

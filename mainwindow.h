@@ -40,6 +40,9 @@
 #include <QBuffer>
 
 #include <QDesktopServices>
+#include <QEventLoop>
+#include <QTimer>
+#include <QApplication>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -196,6 +199,37 @@ public:
 
      void populateRelayTestTable(const QVariantList &relayData);
 
+     // For Flexible Get Details TableViews
+     void setupSqlTableView(QTableView *tableView,
+                            QSqlTableModel *model);
+
+     bool refreshPatchValidationLists();
+
+     bool savePatchDisplayChanges();
+
+     bool convertLogicalPatchToDatabase(
+         const QString &logicalCon,
+         const QString &logicalPin,
+         QString &dbCon,
+         int &dbPin);
+
+     bool exportTableToExcel(QTableView *tableView,
+                             const QString &fileSuffix);
+
+     bool importTableFromExcel(
+         QTableView *tableView,
+         const QString &tableSuffix,
+         const QStringList &columns,
+         bool isPatchTable = false);
+
+     inline void pauseFor(int milliseconds) {
+         QEventLoop loop;
+         QTimer::singleShot(milliseconds, &loop, &QEventLoop::quit);  // After delay, quit the event loop
+         loop.exec();  // Start the event loop and wait for it to quit
+         QApplication::processEvents();  // Keep UI healthy
+     }
+
+
 private slots:
      void on_pushButton_Save_clicked();
 
@@ -269,8 +303,6 @@ private slots:
      void on_pushButton_backToModes_clicked();
 
      void on_pushButton_getDetails_clicked();
-
-     void on_tabWidget_tabBarClicked(int index);
 
      void loadPatchTable(const QString &tableName);
 
@@ -453,6 +485,65 @@ private slots:
 
 
        void on_comboBox_files_currentTextChanged(const QString &arg1);
+       void on_pushButton_backFromGetDetails_clicked();
+
+       void on_pushButton_addDiodeRow_clicked();
+
+       void on_pushButton_delDiodeRow_clicked();
+
+       void on_pushButton_addRelayRow_clicked();
+
+       void on_pushButton_delRelayRow_clicked();
+
+       void on_pushButton_editTableViewDiode_clicked();
+
+       void on_pushButton_saveChangesDiode_clicked();
+
+       void on_pushButton_revertChangesDiode_clicked();
+
+       void on_pushButton_editTableViewRelay_clicked();
+
+       void on_pushButton_saveChangesRelay_clicked();
+
+       void on_pushButton_revertChangesRelay_clicked();
+
+       void on_pushButton_clearErrorLog_clicked();
+
+       void on_pushButton_addPatchRow_clicked();
+
+       void on_pushButton_delPatchRow_clicked();
+
+       void on_pushButton_exportPatch_clicked();
+
+       void on_pushButton_exportHarness_clicked();
+
+       void on_pushButton_exportDiode_clicked();
+
+       void on_pushButton_exportRelay_clicked();
+
+       void on_pushButton_importPatch_clicked();
+
+       void on_pushButton_importHarness_clicked();
+
+       void on_pushButton_importDiode_clicked();
+
+       void on_pushButton_impotRelay_clicked();
+
+       void on_checkBox_adjustRelayColumns_clicked(bool checked);
+
+       void on_checkBox_adjustDiodeColumns_clicked(bool checked);
+
+       void on_checkBox_adjustInsuIsoColumns_clicked(bool checked);
+
+       void on_checkBox_adjustTwoWireColumns_clicked(bool checked);
+
+       void on_checkBox_editRemarksTwoWire_clicked(bool checked);
+
+       void on_checkBox_editRemarksIsoInsu_clicked(bool checked);
+
+       void on_checkBox_editRemarksDiode_clicked(bool checked);
+
+       void on_checkBox_editRemarksRelay_clicked(bool checked);
 
 public slots:
 
@@ -511,6 +602,9 @@ public slots:
        bool checkRelayExpected(
               float measuredOhms,
               const QString &expected);
+
+       void onRelayNackReceived(quint8 relayId, int resultIndex);
+
 
 
 

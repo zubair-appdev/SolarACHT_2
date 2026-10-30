@@ -52,12 +52,28 @@ MainWindow::MainWindow(QWidget *parent)
     });
 
 
-
     ui->comboBox_ports->addItems(test->availablePorts());
+
+    //Auto Port Detect Mechanism
+    QString detectedPort =
+            test->detectDevicePort();
+
+    if (!detectedPort.isEmpty())
+    {
+
+        ui->comboBox_ports
+                ->setCurrentText(detectedPort);
+
+        test->setPORTNAME(detectedPort);
+
+        qDebug() << "Auto connected to"
+                 << detectedPort;
+    }
+
     connect(ui->comboBox_ports,SIGNAL(activated(const QString &)),this,SLOT(onPortSelected(const QString &)));
     connect(test,&TestController::portOpening,this,&MainWindow::portStatus);
     connect(test,&TestController::executeWriteToNotes,this,&MainWindow::writeToNotes);
-     connect(ui->pushButton_refresh, &QPushButton::clicked, this, &MainWindow::refreshPorts);
+    connect(ui->pushButton_refresh, &QPushButton::clicked, this, &MainWindow::refreshPorts);
 
     test->welcome();
     resetLogFile();
@@ -67,48 +83,56 @@ MainWindow::MainWindow(QWidget *parent)
 
     writeToNotes("Pointer Size: "+QString::number(sizeof(void *))+" If it is 8 : 64 bit else 4 means 32 bit");
 
+    //showMaximized();
+
     initializeDatabase();
+    // =========================================================
+    // Patch Model
+    // =========================================================
+    patchModel = new QSqlTableModel(this, db);
 
-    //patch model
-    patchModel = new QSqlTableModel(this,db);
-    ui->tableView_patch->setModel(patchModel);
-    ui->tableView_patch->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    patchModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
-    ui->tableView_patch->setSelectionBehavior(QAbstractItemView::SelectRows);
-    ui->tableView_patch->setSelectionMode(QAbstractItemView::SingleSelection);
+    setupSqlTableView(
+        ui->tableView_patch,
+        patchModel);
 
-    //harness model
-    harnessModel = new QSqlTableModel(this,db);
-    ui->tableView_harness->setModel(harnessModel);
-    ui->tableView_harness->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    harnessModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
-    ui->tableView_harness->verticalHeader()->setVisible(true);
 
-    // Relay model
+    // =========================================================
+    // Harness Model
+    // =========================================================
+    harnessModel = new QSqlTableModel(this, db);
+
+    setupSqlTableView(
+        ui->tableView_harness,
+        harnessModel);
+
+
+    // =========================================================
+    // Relay Model
+    // =========================================================
     relayModel = new QSqlTableModel(this, db);
-    ui->tableView_Relay->setModel(relayModel);
-    ui->tableView_Relay->horizontalHeader()->setSectionResizeMode(
-        QHeaderView::Stretch);
-    ui->tableView_Relay->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    ui->tableView_Relay->setSelectionBehavior(QAbstractItemView::SelectRows);
-    ui->tableView_Relay->setSelectionMode(QAbstractItemView::SingleSelection);
-    ui->tableView_Relay->verticalHeader()->setVisible(true);
 
-    // Diode model
+    setupSqlTableView(
+        ui->tableView_Relay,
+        relayModel);
+
+
+    // =========================================================
+    // Diode Model
+    // =========================================================
     diodeModel = new QSqlTableModel(this, db);
-    ui->tableView_diode->setModel(diodeModel);
-    ui->tableView_diode->horizontalHeader()->setSectionResizeMode(
-        QHeaderView::Stretch);
-    ui->tableView_diode->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    ui->tableView_diode->setSelectionBehavior(QAbstractItemView::SelectRows);
-    ui->tableView_diode->setSelectionMode(QAbstractItemView::SingleSelection);
-    ui->tableView_diode->verticalHeader()->setVisible(true);
 
+    setupSqlTableView(
+        ui->tableView_diode,
+        diodeModel);
+
+
+    // =========================================================
+    // Other UI Initialization
+    // =========================================================
     ui->stackedWidget->setCurrentIndex(0);
 
-    ui->lineEdit_newPassword->setEchoMode(QLineEdit::Password);
-
-
+    ui->lineEdit_newPassword->setEchoMode(
+        QLineEdit::Password);
 
     // For Live Data Upload
     connect(test,
@@ -298,6 +322,45 @@ MainWindow::MainWindow(QWidget *parent)
             this,
             &MainWindow::onRelayResultsCompleted);
 
+    connect(test, &TestController::relayNackReceived,
+            this, &MainWindow::onRelayNackReceived);
+
+    //Proper maintaining row heights for display tableViews
+       connect(ui->tabWidget,
+               &QTabWidget::currentChanged,
+               this,
+               [this](int index)
+       {
+           QWidget *page = ui->tabWidget->widget(index);
+
+           if (!page)
+               return;
+
+           // Wait until the selected page has been laid out.
+           QMetaObject::invokeMethod(
+               this,
+               [page]()
+               {
+                   if (!page)
+                       return;
+
+                   const QList<QTableView *> tables =
+                       page->findChildren<QTableView *>();
+
+                   for (QTableView *table : tables)
+                   {
+                       if (table->model())
+                           table->resizeRowsToContents();
+                   }
+               },
+               Qt::QueuedConnection);
+       });
+
+    //Hidden elements
+    ui->doubleSpinBox_voltage->hide();
+    ui->checkBox_simulate->hide();
+    ui->checkBox_showFailedPinsTwoWire->hide();
+
 }
 MainWindow::~MainWindow()
 {
@@ -313,19 +376,6 @@ void MainWindow::refreshPorts()
             test->availablePorts();
 
     ui->comboBox_ports->addItems(ports);
-
-//    QString detectedPort =
-//            serialObj->detectDevicePort();
-
-//    if (!detectedPort.isEmpty())
-//    {
-//        ui->comboBox_ports ->setCurrentText(detectedPort);
-
-//        serialObj->setPORTNAME(detectedPort);
-
-//        qDebug() << "Auto connected to"
-//                 << detectedPort;
-//    }
 }
 
 bool MainWindow::initializeDatabase()
@@ -999,6 +1049,7 @@ void MainWindow::on_pushButton_delTomain_clicked()
 
 void MainWindow::on_pushButton_dataEntry_clicked()
 {
+    ui->textEdit_ErrorLog->clear();
     ui->comboBox_fileNames->clear();
     ui->comboBox_fileNames->addItems(getCableNames());
     ui->stackedWidget->setCurrentIndex(10);
@@ -2176,11 +2227,10 @@ void MainWindow::on_pushButton_backToModes_clicked()
 
 }
 
+
 void MainWindow::on_pushButton_getDetails_clicked()
 {
     QString tableName = ui->comboBox_fileNames->currentText();
-
-    ui->pushButton_patchCancel->hide();
 
     if (tableName.isEmpty())
     {
@@ -2198,32 +2248,24 @@ void MainWindow::on_pushButton_getDetails_clicked()
         return;
     }
 
-    ui->tabWidget->setCurrentIndex(0);
-    ui->stackedWidget->setCurrentIndex(11);
-
-    // Patch
+    // Load tables
     loadPatchTable(tableName + "_patch");
     ui->label_fileName->setText(tableName);
 
-    // Harness
     loadHarnessTable(tableName + "_harness");
     ui->label_fileNameH->setText(tableName);
 
-    // Relay (optional)
     loadRelayTable(tableName + "_relay");
+    ui->label_fileName_relay->setText(tableName);
 
-    // Diode (optional)
     loadDiodeTable(tableName + "_diode");
+    ui->label_fileName_diode->setText(tableName);
+
+    ui->tabWidget->setCurrentIndex(0);
+    ui->stackedWidget->setCurrentIndex(11);
+
 }
 
-void MainWindow::on_tabWidget_tabBarClicked(int index)
-{
-    //Used as back button
-    if(index == 4)
-    {
-        ui->stackedWidget->setCurrentIndex(10);
-    }
-}
 
 void MainWindow::loadPatchTable(const QString &tableName)
 {
@@ -2331,66 +2373,125 @@ void MainWindow::loadHarnessTable(const QString &tableName)
 
 void MainWindow::on_pushButton_editTableView_clicked()
 {
-    ui->tableView_harness->setEditTriggers(
-                QAbstractItemView::DoubleClicked |
-                QAbstractItemView::SelectedClicked |
-                QAbstractItemView::EditKeyPressed
-                );
+    ui->tableView_harness->setEditingEnabled(true);
+
     QMessageBox::information(this,"Editable","Now you can edit table");
 }
 
 void MainWindow::on_pushButton_saveChanges_clicked()
 {
+    // Step 1: Refresh Patch references from the visible Patch table.
+    if (!refreshPatchValidationLists())
+        return;
 
-    if(harnessModel->submitAll())
+    // Step 2: Extract current Harness model rows.
+    QVector<QString> cableTemp;
+    QVector<QString> sourceConTemp, sourcePinTemp;
+    QVector<QString> destConTemp, destPinTemp;
+    QVector<QString> expTemp;
+
+    for (int row = 0; row < harnessModel->rowCount(); ++row)
     {
-        QMessageBox::information(this,"Success", "Changes saved successfully");
-        // Disable editing again
-        ui->tableView_harness->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        cableTemp.append(
+            harnessModel->index(row, 1).data().toString().trimmed());
+
+        sourceConTemp.append(
+            harnessModel->index(row, 2).data().toString().trimmed());
+
+        sourcePinTemp.append(
+            harnessModel->index(row, 3).data().toString().trimmed());
+
+        destConTemp.append(
+            harnessModel->index(row, 4).data().toString().trimmed());
+
+        destPinTemp.append(
+            harnessModel->index(row, 5).data().toString().trimmed());
+
+        expTemp.append(
+            harnessModel->index(row, 6).data().toString().trimmed());
+    }
+
+    // Step 3: Run existing validation rules.
+    if (!validateHarnessData(
+            cableTemp,
+            sourceConTemp, sourcePinTemp,
+            destConTemp, destPinTemp,
+            expTemp))
+    {
+        QMessageBox::warning(
+               this,
+               "Validation Failed",
+               "Harness data validation failed.\n\n"
+               "Please check the Error Log page for details.");
+
+        // Navigate to the Error Log page after the popup closes.
+           ui->stackedWidget->setCurrentWidget(ui->page_dataEntry);
+
+        return;
+    }
+
+    // Step 4: Save only after validation succeeds.
+    if (harnessModel->submitAll())
+    {
+        QMessageBox::information(
+            this, "Success", "Changes saved successfully");
+
+        ui->tableView_harness->setEditingEnabled(false);
     }
     else
     {
-        QMessageBox::warning(this,"Error",harnessModel->lastError().text());
+        QMessageBox::warning(
+            this, "Error", harnessModel->lastError().text());
     }
 }
 
 void MainWindow::on_pushButton_revertChanges_clicked()
 {
     harnessModel->revertAll();
-    ui->tableView_harness->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    ui->tableView_harness->setEditingEnabled(false);
 }
 
 void MainWindow::on_pushButton_patchEdit_clicked()
 {
-    ui->pushButton_patchCancel->setVisible(true);
-    ui->tableView_patch->setEditTriggers(
-                QAbstractItemView::DoubleClicked |
-                QAbstractItemView::SelectedClicked |
-                QAbstractItemView::EditKeyPressed
-                );
-    QMessageBox::information(this,"Editable","Now you can edit table");
+    ui->tableView_patch->setEditingEnabled(true);
+
+    QMessageBox::information(
+        this, "Editable", "Now you can edit table");
 }
 
 void MainWindow::on_pushButton_patchSave_clicked()
 {
+    if (!savePatchDisplayChanges())
+    {
+        ui->stackedWidget->setCurrentWidget(ui->page_dataEntry);
+        return;
+    }
 
-    if(patchModel->submitAll())
-    {
-        patchModel->select();
-        QMessageBox::information(this,"Success","Changes saved successfully");
-        // Disable editing again
-        ui->tableView_patch->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    }
-    else
-    {
-        QMessageBox::warning(this, "Error", patchModel->lastError().text());
-    }
+    const QString tableName = patchModel->tableName();
+
+    // Reload both models from the committed database values.
+    loadPatchTable(tableName);
+
+   ui->tableView_patch->setEditingEnabled(false);
+
+    QMessageBox::information(
+        this, "Success", "Patch changes saved successfully.");
 }
 
 void MainWindow::on_pushButton_patchCancel_clicked()
 {
+    const QString tableName = patchModel->tableName();
+
+    // Discard any pending SQL-model changes.
     patchModel->revertAll();
-    ui->tableView_patch->setEditTriggers(QAbstractItemView::NoEditTriggers);
+
+    // Rebuild the visible model from the database.
+    loadPatchTable(tableName);
+
+    ui->tableView_patch->setEditingEnabled(false);
+
+    QMessageBox::information(
+        this, "Cancelled", "Patch changes have been discarded.");
 }
 
 void MainWindow::on_pushButton_delCable_clicked()
@@ -2979,8 +3080,13 @@ void MainWindow::processTwoWireResults()
 
         float convertedMeasuredOhms =
                 measuredOhms
-                - (sourceCalibration +
-                   destinationCalibration);
+                - (sourceCalibration + destinationCalibration);
+
+        // Resistance cannot be negative.
+        if (convertedMeasuredOhms < 0.0f)
+        {
+            convertedMeasuredOhms = 0.02f;
+        }
 
         // =============================================
         // Log calibration calculation
@@ -3069,7 +3175,7 @@ void MainWindow::processTwoWireResults()
 
         bool pass =
                 checkTwoWireExpected(
-                    measuredOhms,
+                    convertedMeasuredOhms,
                     expected);
 
         // =============================================
@@ -3115,11 +3221,11 @@ void MainWindow::processTwoWireResults()
 
         if (pass)
         {
-            remarks = "Within expected range";
+            remarks = "";
         }
         else
         {
-            remarks = "Measured value out of range";
+            remarks = "";
         }
 
         m_twoWireTestModel->setData(
@@ -4461,8 +4567,47 @@ void MainWindow::onRelayResultsCompleted()
 
     for (int row = 0; row < resultCount; ++row)
     {
-        const float measuredOhms =
-            m_relayMeasuredValues[row];
+
+        float measuredOhms = m_relayMeasuredValues[row];
+
+        // NACK result: preserve the INVALID status already set in the table.
+        if (qIsNaN(measuredOhms))
+        {
+            // Ensure the table displays readable text, never "nan".
+            m_relayTestModel->setData(
+                m_relayTestModel->index(row, 11),
+                "INVALID");
+
+            // Keep the row marked as FAIL.
+            const QModelIndex resultIndex =
+                m_relayTestModel->index(row, 12);
+
+            m_relayTestModel->setData(resultIndex, "FAIL");
+
+            m_relayTestModel->setData(
+                resultIndex,
+                QBrush(QColor(255, 205, 205)),
+                Qt::BackgroundRole);
+
+            m_relayTestModel->setData(
+                m_relayTestModel->index(row, 13),
+                "NACK received");
+
+            writeToNotes(
+                QString("Relay Result %1 | Measured: INVALID | "
+                        "Expected: %2 | FAIL - NACK received")
+                    .arg(row + 1)
+                    .arg(m_relayTestModel->index(row, 9)
+                             .data().toString().trimmed()));
+
+            continue;
+        }
+
+        // Resistance cannot be negative.
+        if (measuredOhms < 0.0f)
+        {
+            measuredOhms = 0.02f;
+        }
 
         // =================================================
         // 1. Convert measured value to readable format
@@ -4522,7 +4667,8 @@ void MainWindow::onRelayResultsCompleted()
         // =================================================
 
         const bool pass =
-            checkRelayExpected(measuredOhms, expected);
+            (expected.compare("INVALID", Qt::CaseInsensitive) != 0)
+            && checkRelayExpected(measuredOhms, expected);
 
         // =================================================
         // 5. Update PASS / FAIL
@@ -4556,8 +4702,8 @@ void MainWindow::onRelayResultsCompleted()
 
         m_relayTestModel->setData(
             m_relayTestModel->index(row, 13),
-            pass ? "Within expected range"
-                 : "Measured value out of range");
+            pass ? ""
+                 : "");
 
         writeToNotes(
             QString("Relay Result %1 | Measured: %2 | "
@@ -4708,6 +4854,118 @@ bool MainWindow::checkRelayExpected(
     return false;
 }
 
+
+
+void MainWindow::onRelayNackReceived(
+    quint8 relayId, int resultIndex)
+{
+    if (!m_relayTestModel)
+        return;
+
+    // Hardware IDs are zero-based; UI relay numbers start at 1.
+    const QString failedRelay =
+        QString("Relay_%1")
+            .arg(static_cast<int>(relayId) + 1);
+
+    const int totalRows = m_relayTestModel->rowCount();
+
+    if (resultIndex < 0 || resultIndex >= totalRows)
+        return;
+
+    // Find the first remaining row belonging to this relay,
+    // starting from the current result position.
+    int firstRow = -1;
+
+    for (int row = resultIndex; row < totalRows; ++row)
+    {
+        const QString relayName =
+            m_relayTestModel->index(row, 4)
+                .data().toString().simplified();
+
+        if (relayName == failedRelay ||
+            relayName.startsWith(
+                failedRelay + " ", Qt::CaseInsensitive))
+        {
+            firstRow = row;
+            break;
+        }
+    }
+
+    if (firstRow < 0)
+    {
+        qDebug() << "Could not find remaining rows for"
+                 << failedRelay
+                 << "starting at result index" << resultIndex;
+        return;
+    }
+
+    // Find the end of this contiguous relay group.
+    int endRow = firstRow;
+
+    while (endRow < totalRows)
+    {
+        const QString relayName =
+            m_relayTestModel->index(endRow, 4)
+                .data().toString().simplified();
+
+        if (relayName != failedRelay &&
+            !relayName.startsWith(
+                failedRelay + " ", Qt::CaseInsensitive))
+        {
+            break;
+        }
+
+        ++endRow;
+    }
+
+    // Mark remaining rows of this relay as INVALID.
+    for (int row = firstRow; row < endRow; ++row)
+    {
+        m_relayTestModel->setData(
+            m_relayTestModel->index(row, 11),
+            "INVALID");
+
+        const QModelIndex resultCell =
+            m_relayTestModel->index(row, 12);
+
+        m_relayTestModel->setData(resultCell, "FAIL");
+
+        m_relayTestModel->setData(
+            resultCell,
+            QBrush(QColor(255, 205, 205)),
+            Qt::BackgroundRole);
+
+        m_relayTestModel->setData(
+            m_relayTestModel->index(row, 13),
+            "NACK received");
+
+        if (row < m_relayMeasuredValues.size())
+        {
+            m_relayMeasuredValues[row] =
+                std::numeric_limits<float>::quiet_NaN();
+        }
+    }
+
+    // Advance over the failed relay's remaining displayed rows.
+    const int skippedRows = endRow - firstRow;
+
+    // Include any unfilled rows between the current result index
+    // and the matching relay row, if applicable.
+    const int totalAdvance = endRow - resultIndex;
+
+    test->skipRelayResultRows(totalAdvance);
+
+    ui->progressBar_RelayTest->setValue(
+        qMin(endRow, totalRows));
+
+    qDebug() << failedRelay
+             << "NACK received at result index:" << resultIndex
+             << "Rows marked INVALID:" << skippedRows
+             << "Result index advanced by:" << totalAdvance;
+}
+
+
+
 void MainWindow::populateInsulationTable(
     const QVector<InsulationTableNet> &nets,
     const QVariantList &patchData)
@@ -4801,10 +5059,41 @@ void MainWindow::populateInsulationTable(
             new QStandardItem("-"));
 
         // Expected value
-        QString expValue =
-            ">" +
-            ui->doubleSpinBox_ResistanceThreshold
-                ->text();
+        double resistanceThreshold =
+                ui->doubleSpinBox_ResistanceThreshold->value();
+
+        QString formattedThreshold;
+
+        if (resistanceThreshold >= 1000000000.0)
+        {
+            formattedThreshold =
+                    QString::number(
+                        resistanceThreshold / 1000000000.0,
+                        'f', 3) + "GΩ";
+        }
+        else if (resistanceThreshold >= 1000000.0)
+        {
+            formattedThreshold =
+                    QString::number(
+                        resistanceThreshold / 1000000.0,
+                        'f', 3) + "MΩ";
+        }
+        else if (resistanceThreshold >= 1000.0)
+        {
+            formattedThreshold =
+                    QString::number(
+                        resistanceThreshold / 1000.0,
+                        'f', 3) + "KΩ";
+        }
+        else
+        {
+            formattedThreshold =
+                    QString::number(
+                        resistanceThreshold,
+                        'f', 3) + "Ω";
+        }
+
+        QString expValue = ">" + formattedThreshold;
 
         row.append(
             new QStandardItem(expValue));
@@ -4849,9 +5138,6 @@ void MainWindow::populateInsulationTable(
     ui->tableView_InsuIso->setWordWrap(true);
     ui->tableView_InsuIso->setTextElideMode(Qt::ElideNone);
 
-    // No horizontal scrolling
-    ui->tableView_InsuIso->setHorizontalScrollBarPolicy(
-        Qt::ScrollBarAlwaysOff);
 
     ui->tableView_InsuIso->resizeRowsToContents();
 
@@ -5217,9 +5503,9 @@ bool MainWindow::validateRelayData(
         return false;
     }
 
-    // Expected resistance formats, same as Harness
+    // Expected resistance formats, same as Harness including OPEN and SHORT
     const QRegularExpression expRegex(
-        R"(^(?:[<>][0-9]+[KM]?|[0-9]+[KM]?\s*±\s*[0-9]+[KM]?|[0-9]+-[0-9]+)$)",
+        R"(^(?:[<>][0-9]+[KM]?|[0-9]+[KM]?\s*±\s*[0-9]+[KM]?|[0-9]+-[0-9]+|OPEN|SHORT)$)",
         QRegularExpression::CaseInsensitiveOption);
 
     // Excitation voltage must be an integer from 1V to 34V
@@ -5507,6 +5793,7 @@ bool MainWindow::validateRelayData(
 }
 
 
+
 bool MainWindow::saveRelayToDb(
     const QString &cableName,
     const QVector<QString> &cableTemp,
@@ -5522,8 +5809,7 @@ bool MainWindow::saveRelayToDb(
     const int count = cableTemp.size();
 
     // Validate vector sizes.
-    if (count == 0 ||
-        sourceConTemp.size() != count ||
+    if (sourceConTemp.size() != count ||
         sourcePinTemp.size() != count ||
         relaySideConTemp.size() != count ||
         relaySideRSPinsTemp.size() != count ||
@@ -5532,128 +5818,145 @@ bool MainWindow::saveRelayToDb(
         excitationVoltageTemp.size() != count ||
         expTemp.size() != count)
     {
-        writeToNotes("❌ Relay data vectors have inconsistent sizes.");
+        const QString error =
+            "Relay data vectors have inconsistent sizes.";
+
+        writeToNotes("❌ " + error);
+        ui->textEdit_ErrorLog->append("❌ " + error);
         return false;
     }
 
     if (!db.isOpen())
     {
-        writeToNotes("❌ Database is not open.");
+        const QString error = "Database is not open.";
+
+        writeToNotes("❌ " + error);
+        ui->textEdit_ErrorLog->append("❌ " + error);
         return false;
     }
 
-    const QString tableName = cableName + "_relay";
+    // Same table naming convention as Diode and Harness.
+    QString tableName = cableName + "_relay";
+    tableName.replace(" ", "_");
 
-    static const QRegularExpression validIdentifier(
-        R"(^[A-Za-z0-9_]+$)");
+    QSqlQuery q(db);
 
-    if (!validIdentifier.match(tableName).hasMatch())
-    {
-        writeToNotes("❌ Invalid Relay table name.");
-        return false;
-    }
-
-    QSqlQuery query(db);
-
-    // Create the table if it does not exist.
+    // Create table if it does not exist.
     const QString createSql =
-        QString(R"(
-            CREATE TABLE IF NOT EXISTS "%1" (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cable TEXT,
-                sourceCon TEXT,
-                sourcePin TEXT,
-                relaySideCon TEXT,
-                relaySideRSPins TEXT,
-                destCon TEXT,
-                destPin TEXT,
-                excitationVoltage TEXT,
-                exp TEXT
-            )
-        )").arg(tableName);
+        "CREATE TABLE IF NOT EXISTS \"" + tableName + "\" ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "cable TEXT,"
+        "sourceCon TEXT,"
+        "sourcePin TEXT,"
+        "relaySideCon TEXT,"
+        "relaySideRSPins TEXT,"
+        "destCon TEXT,"
+        "destPin TEXT,"
+        "excitationVoltage TEXT,"
+        "exp TEXT"
+        ")";
 
-    if (!query.exec(createSql))
+    if (!q.exec(createSql))
     {
-        writeToNotes(
-            "❌ Failed to create Relay table: " +
-            query.lastError().text());
+        const QString error =
+            "Failed to create Relay table " + tableName + ": " +
+            q.lastError().text();
+
+        writeToNotes("❌ " + error);
+        ui->textEdit_ErrorLog->append("❌ " + error);
         return false;
     }
 
-    // Start transaction.
+    // Start transaction before clearing existing records.
     if (!db.transaction())
     {
-        writeToNotes(
-            "❌ Failed to start Relay transaction: " +
-            db.lastError().text());
+        const QString error =
+            "Failed to start Relay transaction: " +
+            db.lastError().text();
+
+        writeToNotes("❌ " + error);
+        ui->textEdit_ErrorLog->append("❌ " + error);
         return false;
     }
 
-    // Insert Relay data without deleting existing records.
-    const QString insertSql =
-        QString(R"(
-            INSERT INTO "%1" (
-                cable,
-                sourceCon,
-                sourcePin,
-                relaySideCon,
-                relaySideRSPins,
-                destCon,
-                destPin,
-                excitationVoltage,
-                exp
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        )").arg(tableName);
-
-    if (!query.prepare(insertSql))
+    // Clear existing records, just like Diode and Harness.
+    if (!q.exec("DELETE FROM \"" + tableName + "\""))
     {
-        writeToNotes(
-            "❌ Relay prepare failed: " +
-            query.lastError().text());
+        const QString error =
+            "Failed to clear Relay table " + tableName + ": " +
+            q.lastError().text();
 
         db.rollback();
+
+        writeToNotes("❌ " + error);
+        ui->textEdit_ErrorLog->append("❌ " + error);
+        return false;
+    }
+
+    const QString insertSql =
+        "INSERT INTO \"" + tableName + "\" ("
+        "cable, sourceCon, sourcePin, relaySideCon, "
+        "relaySideRSPins, destCon, destPin, "
+        "excitationVoltage, exp"
+        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+    if (!q.prepare(insertSql))
+    {
+        const QString error =
+            "Failed to prepare Relay insert: " +
+            q.lastError().text();
+
+        db.rollback();
+
+        writeToNotes("❌ " + error);
+        ui->textEdit_ErrorLog->append("❌ " + error);
         return false;
     }
 
     for (int i = 0; i < count; ++i)
     {
-        query.bindValue(0, cableTemp[i]);
-        query.bindValue(1, sourceConTemp[i]);
-        query.bindValue(2, sourcePinTemp[i]);
-        query.bindValue(3, relaySideConTemp[i]);
-        query.bindValue(4, relaySideRSPinsTemp[i]);
-        query.bindValue(5, destConTemp[i]);
-        query.bindValue(6, destPinTemp[i]);
-        query.bindValue(7, excitationVoltageTemp[i]);
-        query.bindValue(8, expTemp[i]);
+        q.bindValue(0, cableTemp[i]);
+        q.bindValue(1, sourceConTemp[i]);
+        q.bindValue(2, sourcePinTemp[i]);
+        q.bindValue(3, relaySideConTemp[i]);
+        q.bindValue(4, relaySideRSPinsTemp[i]);
+        q.bindValue(5, destConTemp[i]);
+        q.bindValue(6, destPinTemp[i]);
+        q.bindValue(7, excitationVoltageTemp[i]);
+        q.bindValue(8, expTemp[i]);
 
-        if (!query.exec())
+        if (!q.exec())
         {
-            writeToNotes(
-                QString("❌ Relay insert failed at row %1: %2")
+            const QString error =
+                QString("Relay insert failed at row %1: %2")
                     .arg(i + 1)
-                    .arg(query.lastError().text()));
+                    .arg(q.lastError().text());
 
             db.rollback();
+
+            writeToNotes("❌ " + error);
+            ui->textEdit_ErrorLog->append("❌ " + error);
             return false;
         }
     }
 
     if (!db.commit())
     {
-        writeToNotes(
-            "❌ Relay commit failed: " +
-            db.lastError().text());
+        const QString error =
+            "Failed to commit Relay transaction: " +
+            db.lastError().text();
 
         db.rollback();
+
+        writeToNotes("❌ " + error);
+        ui->textEdit_ErrorLog->append("❌ " + error);
         return false;
     }
 
     writeToNotes(
-        QString("✅ Saved %1 Relay rows to table: %2")
-            .arg(count)
-            .arg(tableName));
+        QString("✅ Relay data stored in table: %1 (%2 rows)")
+            .arg(tableName)
+            .arg(count));
 
     return true;
 }
@@ -5928,7 +6231,7 @@ void MainWindow::populateDiodeTestTable(
         "Source Pin",
         "Destination Conn (Cathode)",
         "Destination Pin",
-        "Voltage Drop Across Diode (Min-Max)",
+        "Voltage Drop Across Diode",
         "Result",
         "Remarks"
     });
@@ -6380,6 +6683,34 @@ QVector<QByteArray> MainWindow::constructUARTPacketsForRelay(
             innerData.append(static_cast<char>(srcPinByte));
             innerData.append(static_cast<char>(dstConByte));
             innerData.append(static_cast<char>(dstPinByte));
+
+            // ExpValue: 0x00 = OPEN / >2
+            //           0x01 = SHORT / <2
+            const QString expValue = expected[i].trimmed();
+
+            quint8 expByte = 0xFF;
+
+            if (expValue.compare("OPEN", Qt::CaseInsensitive) == 0 ||
+                expValue == ">2")
+            {
+                expByte = 0x00;
+            }
+            else if (expValue.compare("SHORT", Qt::CaseInsensitive) == 0 ||
+                     expValue == "<2")
+            {
+                expByte = 0x01;
+            }
+            else
+            {
+                writeToNotes(
+                    QString("Relay packet error: Invalid contact ExpValue '%1' at row %2")
+                        .arg(expValue)
+                        .arg(i + 1));
+
+                return {};
+            }
+
+            innerData.append(static_cast<char>(expByte));
         }
 
         // The inner data length is uint8. Never split a group.
@@ -6580,24 +6911,10 @@ void MainWindow::populateRelayTestTable(
     // Attach the model to the Relay table.
     ui->tableView_relay->setModel(m_relayTestModel);
 
-    // Keep columns readable; allow horizontal scrolling.
+    // Stretch all columns to fill the available table width.
     ui->tableView_relay->horizontalHeader()
-        ->setSectionResizeMode(QHeaderView::Interactive);
+        ->setSectionResizeMode(QHeaderView::Stretch);
 
-    ui->tableView_relay->setHorizontalScrollMode(
-        QAbstractItemView::ScrollPerPixel);
-
-    // Set practical initial column widths.
-    const int columnWidths[] = {
-        55, 100, 240, 85, 260, 100, 240,
-        100, 130, 100, 100, 130, 100, 180
-    };
-
-    for (int col = 0; col < 14; ++col)
-    {
-        ui->tableView_relay->setColumnWidth(
-            col, columnWidths[col]);
-    }
 
     int serialNumber = 1;
     int start = 0;
@@ -6644,16 +6961,66 @@ void MainWindow::populateRelayTestTable(
                     relayPins.compare("X1&X2", Qt::CaseInsensitive) == 0 ||
                     relayPins.compare("Y1&Y2", Qt::CaseInsensitive) == 0;
 
-                // Set expected value according to Relay condition
-                QString expectedValue = m["exp"].toString();
+                // Skip coil rows for ON condition
+                if (condition == "ON" && isCoil)
+                    continue;
 
-                if (!isCoil)
+                // Set expected value according to Relay condition
+
+                const QString expectedFromDb = m["exp"].toString().trimmed();
+
+                // Skip coil rows for ON condition
+                if (condition == "ON" && isCoil)
+                    continue;
+
+                QString expectedValue = expectedFromDb;
+
+                if (condition == "ON" && !isCoil)
                 {
-                    if (condition == "OFF")
-                        expectedValue = "<2";
-                    else if (condition == "ON")
-                        expectedValue = ">2";
+                    // Accept only the four valid expected-value forms.
+                    const bool isLessThan2 =
+                        expectedFromDb == "<2";
+
+                    const bool isGreaterThan2 =
+                        expectedFromDb == ">2";
+
+                    const bool isOpen =
+                        expectedFromDb.compare("OPEN", Qt::CaseInsensitive) == 0;
+
+                    const bool isShort =
+                        expectedFromDb.compare("SHORT", Qt::CaseInsensitive) == 0;
+
+                    if (isLessThan2 || isShort ||
+                        isGreaterThan2 || isOpen)
+                    {
+                        const QString pins =
+                            relayPins.toUpper().remove(' ');
+
+                        if (pins == "A2&A3" ||
+                            pins == "B2&B3" ||
+                            pins == "C2&C3" ||
+                            pins == "D2&D3")
+                        {
+                            expectedValue = ">2";
+                        }
+                        else if (pins == "A1&A2" ||
+                                 pins == "B1&B2" ||
+                                 pins == "C1&C2" ||
+                                 pins == "D1&D2")
+                        {
+                            expectedValue = "<2";
+                        }
+                        else
+                        {
+                            expectedValue = "INVALID";
+                        }
+                    }
+                    else
+                    {
+                        expectedValue = "INVALID";
+                    }
                 }
+
 
                 QStringList values = {
                     QString::number(serialNumber++),
@@ -6710,8 +7077,740 @@ void MainWindow::populateRelayTestTable(
         QString("Relay table populated: %1 database rows, "
                 "%2 display rows.")
             .arg(relayData.size())
-            .arg(m_relayTestModel->rowCount()));
+                .arg(m_relayTestModel->rowCount()));
 }
+
+void MainWindow::setupSqlTableView(
+        QTableView *tableView,
+        QSqlTableModel *model)
+{
+    if (!tableView || !model)
+        return;
+
+    // =====================================================
+    // 1. Database Model Configuration
+    // =====================================================
+
+    // Changes are committed only when submitAll() is called.
+    model->setEditStrategy(
+        QSqlTableModel::OnManualSubmit);
+
+    // Assign model to table view.
+    tableView->setModel(model);
+
+    // =====================================================
+    // 2. Column Configuration
+    // =====================================================
+
+    // Stretch columns to fill available table width.
+    tableView->horizontalHeader()->setSectionResizeMode(
+        QHeaderView::Stretch);
+
+    // =====================================================
+    // 3. Editing Configuration
+    // =====================================================
+
+    // Disable editing by default.
+    tableView->setEditTriggers(
+        QAbstractItemView::NoEditTriggers);
+
+    // =====================================================
+    // 4. Selection Configuration
+    // =====================================================
+
+    // Select entire rows.
+    tableView->setSelectionBehavior(
+        QAbstractItemView::SelectRows);
+
+    // Allow only one row to be selected.
+    tableView->setSelectionMode(
+        QAbstractItemView::SingleSelection);
+
+    // =====================================================
+    // 5. Vertical Header Configuration
+    // =====================================================
+
+    // Show row numbers.
+    tableView->verticalHeader()->setVisible(true);
+
+    // =====================================================
+    // 6. Text Wrapping Configuration
+    // =====================================================
+
+    // Wrap long cell text onto multiple lines.
+    tableView->setWordWrap(true);
+
+    // Do not truncate text with "...".
+    tableView->setTextElideMode(
+        Qt::ElideNone);
+
+    // Automatically increase row height for wrapped text.
+    tableView->verticalHeader()->setSectionResizeMode(
+                QHeaderView::ResizeToContents);
+}
+
+bool MainWindow::refreshPatchValidationLists()
+{
+    QStandardItemModel *displayModel =
+        qobject_cast<QStandardItemModel *>(
+            ui->tableView_patch->model());
+
+    if (!displayModel || displayModel->rowCount() == 0)
+    {
+        const QString error =
+            "Patch table is unavailable or contains no rows. "
+            "Cannot validate connector/pin references.";
+
+        writeToNotes("❌ " + error);
+        ui->textEdit_ErrorLog->append("❌ " + error);
+        return false;
+    }
+
+    // Rebuild the lists from the CURRENT visible Patch table.
+    userConList.clear();
+    userPinList.clear();
+
+    for (int row = 0; row < displayModel->rowCount(); ++row)
+    {
+        userConList.append(
+            displayModel->index(row, 2).data().toString().trimmed());
+
+        userPinList.append(
+            displayModel->index(row, 3).data().toString().trimmed());
+    }
+
+    return true;
+}
+
+bool MainWindow::savePatchDisplayChanges()
+{
+    QStandardItemModel *displayModel =
+        qobject_cast<QStandardItemModel *>(
+            ui->tableView_patch->model());
+
+    if (!displayModel || patchModel->tableName().isEmpty())
+    {
+        QMessageBox::warning(
+            this, "Error", "Patch table is not loaded.");
+        return false;
+    }
+    testCalibration=false;
+
+    if(ui->comboBox_files->currentIndex()==0||ui->lineEdit_inspectedBy->text()==""
+            ||ui->lineEdit_setNo->text()==""||ui->lineEdit_performedBy->text()==""
+            ||ui->lineEdit_projectName->text()==""||ui->textEdit_notesOutput->toPlainText().isEmpty()
+            ||ui->comboBox_test->currentIndex()==0)
+    const int displayRows = displayModel->rowCount();
+
+    if (displayRows == 0)
+    {
+        QMessageBox::warning(
+            this, "Error", "Patch table cannot be empty.");
+        return false;
+    }
+
+    // Fetch every database row before matching by ID.
+    while (patchModel->canFetchMore())
+        patchModel->fetchMore();
+
+    // Validate and convert visible values before modifying SQL model.
+    struct PatchRow
+    {
+        QString id;
+        QString cable;
+        QString userCon;
+        QString userPin;
+        QString patchCon;
+        int patchPin;
+    };
+
+    QVector<PatchRow> rows;
+    QSet<QString> displayIds;
+
+    for (int row = 0; row < displayRows; ++row)
+    {
+        PatchRow item;
+
+        item.id =
+            displayModel->index(row, 0).data().toString().trimmed();
+
+        item.cable =
+            displayModel->index(row, 1).data().toString().trimmed();
+
+        item.userCon =
+            displayModel->index(row, 2).data().toString().trimmed();
+
+        item.userPin =
+            displayModel->index(row, 3).data().toString().trimmed();
+
+        const QString logicalCon =
+            displayModel->index(row, 4).data().toString().trimmed();
+
+        const QString logicalPin =
+            displayModel->index(row, 5).data().toString().trimmed();
+
+        if (item.cable.isEmpty() ||
+            item.userCon.isEmpty() ||
+            item.userPin.isEmpty())
+        {
+            QMessageBox::warning(
+                this, "Validation Failed",
+                QString("Empty required field in Patch row %1.")
+                    .arg(row + 1));
+            return false;
+        }
+
+        if (!convertLogicalPatchToDatabase(
+                logicalCon,
+                logicalPin,
+                item.patchCon,
+                item.patchPin))
+        {
+            QMessageBox::warning(
+                this, "Validation Failed",
+                QString("Invalid Patch connector or pin in row %1.\n"
+                        "Connector must be TP-1 to TP-15 and pin 1 to 128.")
+                    .arg(row + 1));
+            return false;
+        }
+
+        if (!item.id.isEmpty())
+        {
+            if (displayIds.contains(item.id))
+            {
+                QMessageBox::warning(
+                    this, "Validation Failed",
+                    "Duplicate Patch row ID detected.");
+                return false;
+            }
+
+            displayIds.insert(item.id);
+        }
+
+        rows.append(item);
+    }
+
+    // Map existing database IDs to their current model row positions.
+    QHash<QString, int> databaseRows;
+
+    for (int row = 0; row < patchModel->rowCount(); ++row)
+    {
+        const QString id =
+            patchModel->index(row, 0).data().toString();
+
+        databaseRows.insert(id, row);
+    }
+
+    // Remove database rows deleted from the visible model.
+    for (int row = patchModel->rowCount() - 1; row >= 0; --row)
+    {
+        const QString id =
+            patchModel->index(row, 0).data().toString();
+
+        if (!displayIds.contains(id))
+        {
+            if (!patchModel->removeRow(row))
+            {
+                QMessageBox::warning(
+                    this, "Error",
+                    "Unable to mark a Patch row for deletion.");
+                patchModel->revertAll();
+                return false;
+            }
+        }
+    }
+
+    // Update existing rows or insert new rows.
+    for (const PatchRow &item : rows)
+    {
+        int dbRow = -1;
+
+        if (!item.id.isEmpty())
+            dbRow = databaseRows.value(item.id, -1);
+
+        if (dbRow >= 0)
+        {
+            // Update the existing database-model row.
+            patchModel->setData(
+                patchModel->index(dbRow, 1), item.cable);
+
+            patchModel->setData(
+                patchModel->index(dbRow, 2), item.userCon);
+
+            patchModel->setData(
+                patchModel->index(dbRow, 3), item.userPin);
+
+            patchModel->setData(
+                patchModel->index(dbRow, 4), item.patchCon);
+
+            patchModel->setData(
+                patchModel->index(dbRow, 5), item.patchPin);
+        }
+        else
+        {
+            // New visible row: insert into the SQL model.
+            const int newRow = patchModel->rowCount();
+
+            if (!patchModel->insertRow(newRow))
+            {
+                QMessageBox::warning(
+                    this, "Error",
+                    "Unable to insert a new Patch row.");
+
+                patchModel->revertAll();
+                return false;
+            }
+
+            patchModel->setData(
+                patchModel->index(newRow, 1), item.cable);
+
+            patchModel->setData(
+                patchModel->index(newRow, 2), item.userCon);
+
+            patchModel->setData(
+                patchModel->index(newRow, 3), item.userPin);
+
+            patchModel->setData(
+                patchModel->index(newRow, 4), item.patchCon);
+
+            patchModel->setData(
+                patchModel->index(newRow, 5), item.patchPin);
+        }
+    }
+
+    // Commit all pending database-model changes.
+    if (!patchModel->submitAll())
+    {
+        const QString error = patchModel->lastError().text();
+
+        patchModel->revertAll();
+
+        QMessageBox::warning(
+            this, "Database Error", error);
+
+        return false;
+    }
+
+    return true;
+}
+
+bool MainWindow::convertLogicalPatchToDatabase(
+    const QString &logicalCon,
+    const QString &logicalPin,
+    QString &dbCon,
+    int &dbPin)
+{
+    static const QRegularExpression conRegex(
+        R"(^TP-?(?:[1-9]|1[0-5])$)",
+        QRegularExpression::CaseInsensitiveOption);
+
+    if (!conRegex.match(logicalCon.trimmed()).hasMatch())
+        return false;
+
+    bool ok = false;
+
+    const int tpNo =
+        logicalCon.trimmed().section('-', 1).toInt(&ok);
+
+    if (!ok || tpNo < 1 || tpNo > 15)
+        return false;
+
+    const int pin = logicalPin.trimmed().toInt(&ok);
+
+    if (!ok || pin < 1 || pin > 128)
+        return false;
+
+    int physicalTp = 0;
+    int physicalPin = pin;
+
+    // EXACT existing conversion rule.
+    if (pin <= 64)
+    {
+        physicalTp = (tpNo * 2) - 1;
+    }
+    else
+    {
+        if (tpNo == 15)
+            physicalTp = 31;
+        else
+            physicalTp = tpNo * 2;
+
+        physicalPin -= 64;
+    }
+
+    dbCon = QString("TP-%1").arg(physicalTp);
+    dbPin = physicalPin;
+
+    return true;
+}
+
+
+bool MainWindow::exportTableToExcel(QTableView *tableView,
+                                    const QString &fileSuffix)
+{
+    if (!tableView || !tableView->model()) {
+        QMessageBox::warning(this, "Export Error",
+                             "Table model is not available.");
+        return false;
+    }
+
+    // Desktop/ImportsExports_ACHT
+    QString desktopPath =
+        QStandardPaths::writableLocation(
+            QStandardPaths::DesktopLocation);
+
+    if (desktopPath.isEmpty()) {
+        QMessageBox::warning(this, "Export Error",
+                             "Unable to locate Desktop folder.");
+        return false;
+    }
+
+    const QString folderPath =
+        QDir(desktopPath).filePath("ImportsExports_ACHT");
+
+    QDir dir;
+    if (!dir.mkpath(folderPath)) {
+        QMessageBox::warning(this, "Export Error",
+                             "Unable to create export folder.");
+        return false;
+    }
+
+    // Timestamped filename
+    const QString timestamp =
+        QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+
+    const QString filePath =
+        QDir(folderPath).filePath(
+            timestamp + "_" + fileSuffix + ".xlsx");
+
+    QXlsx::Document xlsx;
+
+    QAbstractItemModel *model = tableView->model();
+
+    // Export visible rows and columns; no headers.
+    int excelRow = 1;
+
+    for (int row = 0; row < model->rowCount(); ++row) {
+        if (tableView->isRowHidden(row))
+            continue;
+
+        int excelCol = 1;
+
+        for (int col = 0; col < model->columnCount(); ++col) {
+            if (tableView->isColumnHidden(col))
+                continue;
+
+            const QModelIndex index = model->index(row, col);
+
+            if (!index.isValid())
+                continue;
+
+            xlsx.write(excelRow, excelCol,
+                       index.data(Qt::DisplayRole));
+            ++excelCol;
+        }
+
+        ++excelRow;
+    }
+
+    if (!xlsx.saveAs(filePath)) {
+        QMessageBox::warning(this, "Export Error",
+                             "Failed to save Excel file:\n" + filePath);
+        return false;
+    }
+
+    QMessageBox::information(
+        this, "Export Successful",
+        "Excel file exported successfully:\n" + filePath);
+
+    return true;
+}
+
+
+bool MainWindow::importTableFromExcel(
+    QTableView *tableView,
+    const QString &tableSuffix,
+    const QStringList &columns,
+    bool isPatchTable)
+{
+    if (!db.isOpen()) {
+        QMessageBox::warning(this, "Import Error",
+                             "Database is not open.");
+        return false;
+    }
+
+    const QString cableName =
+        ui->comboBox_fileNames->currentText().trimmed();
+
+    if (cableName.isEmpty()) {
+        QMessageBox::warning(this, "Import Error",
+                             "Please select a cable first.");
+        return false;
+    }
+
+    QString tableName = cableName + tableSuffix;
+    tableName.replace(" ", "_");
+
+    static const QRegularExpression validIdentifier(
+        "^[A-Za-z0-9_]+$");
+
+    if (!validIdentifier.match(tableName).hasMatch()) {
+        QMessageBox::warning(this, "Import Error",
+                             "Invalid destination table name.");
+        return false;
+    }
+
+    const QString desktopPath =
+        QStandardPaths::writableLocation(
+            QStandardPaths::DesktopLocation);
+
+    const QString folderPath =
+        QDir(desktopPath).filePath("ImportsExports_ACHT");
+
+    QDir().mkpath(folderPath);
+
+    QString filePath = QFileDialog::getOpenFileName(
+        this,
+        "Import Excel File",
+        QDir(folderPath).exists() ? folderPath : desktopPath,
+        "Excel Files (*.xlsx)");
+
+    if (filePath.isEmpty())
+        return false;
+
+    QXlsx::Document xlsx(filePath);
+
+    if (!xlsx.load()) {
+        QMessageBox::warning(this, "Import Error",
+                             "Unable to open the selected Excel file.");
+        return false;
+    }
+
+    const QXlsx::CellRange range = xlsx.dimension();
+
+    if (!range.isValid() || range.rowCount() == 0) {
+        QMessageBox::warning(this, "Import Error",
+                             "The Excel file contains no data.");
+        return false;
+    }
+
+    const int expectedColumns = columns.size();
+
+    if (range.firstColumn() != 1 ||
+        range.columnCount() != expectedColumns) {
+        QMessageBox::warning(
+            this, "Import Error",
+            QString("Incorrect Excel column count.\n"
+                    "Expected: %1\nFound: %2")
+                .arg(expectedColumns)
+                .arg(range.columnCount()));
+        return false;
+    }
+
+    // Read all Excel rows before modifying the database.
+    QVector<QStringList> importedRows;
+
+    for (int row = range.firstRow();
+         row <= range.lastRow(); ++row) {
+
+        QStringList values;
+
+        for (int col = 1; col <= expectedColumns; ++col) {
+            values.append(xlsx.read(row, col).toString().trimmed());
+        }
+
+        bool allEmpty = true;
+
+        for (const QString &value : values) {
+            if (!value.isEmpty()) {
+                allEmpty = false;
+                break;
+            }
+        }
+
+        if (allEmpty)
+            continue;
+
+
+        if (isPatchTable) {
+            // Excel columns:
+            // 0 = cable, 1 = userCon, 2 = userPin,
+            // 3 = logical patchCon, 4 = logical patchPin.
+
+            const QString logicalCon = values[3];
+            const QString logicalPin = values[4];
+
+            static const QRegularExpression patchConRegex(
+                "^TP-?(?:[1-9]|1[0-5])$",
+                QRegularExpression::CaseInsensitiveOption);
+
+            if (!patchConRegex.match(logicalCon).hasMatch()) {
+                QMessageBox::warning(
+                    this, "Patch Import Error",
+                    QString("Invalid Patch connector at Excel row %1: %2")
+                        .arg(row)
+                        .arg(logicalCon));
+                return false;
+            }
+
+            bool tpOk = false;
+            bool pinOk = false;
+
+            const int tpNo =
+                logicalCon.section('-', 1).toInt(&tpOk);
+
+            const int pin = logicalPin.toInt(&pinOk);
+
+            if (!tpOk || tpNo < 1 || tpNo > 15 ||
+                !pinOk || pin < 1 || pin > 128) {
+                QMessageBox::warning(
+                    this, "Patch Import Error",
+                    QString("Invalid Patch connector or pin at Excel row %1.")
+                        .arg(row));
+                return false;
+            }
+
+            // Convert logical connector/pin to physical DB mapping.
+            int physicalTp = 0;
+            int physicalPin = pin;
+
+            if (pin <= 64) {
+                physicalTp = (tpNo * 2) - 1;
+            } else {
+                physicalTp = (tpNo == 15) ? 31 : tpNo * 2;
+                physicalPin -= 64;
+            }
+
+            values[3] = QString("TP-%1").arg(physicalTp);
+            values[4] = QString::number(physicalPin);
+        }
+
+        importedRows.append(values);
+    }
+
+    if (importedRows.isEmpty()) {
+        QMessageBox::warning(
+            this, "Import Error",
+            "No data rows were found. The database was not changed.");
+        return false;
+    }
+
+    // Ensure the destination table already exists.
+    QSqlQuery checkQuery(db);
+
+    checkQuery.prepare(
+        "SELECT name FROM sqlite_master "
+        "WHERE type = 'table' AND name = ? COLLATE NOCASE");
+
+    checkQuery.addBindValue(tableName);
+
+    if (!checkQuery.exec() || !checkQuery.next()) {
+        QMessageBox::warning(
+            this, "Import Error",
+            "Destination table does not exist:\n" + tableName);
+        return false;
+    }
+
+    // Begin atomic replacement.
+    if (!db.transaction()) {
+        QMessageBox::warning(
+            this, "Import Error",
+            "Unable to start transaction:\n" +
+                db.lastError().text());
+        return false;
+    }
+
+    const QString quotedTable =
+        "\"" + tableName + "\"";
+
+    QSqlQuery query(db);
+
+    if (!query.exec("DELETE FROM " + quotedTable)) {
+        const QString error = query.lastError().text();
+        db.rollback();
+
+        QMessageBox::warning(
+            this, "Import Error",
+            "Unable to clear existing records:\n" + error);
+        return false;
+    }
+
+    QStringList quotedColumns;
+    QStringList placeholders;
+
+    for (const QString &column : columns) {
+        quotedColumns.append("\"" + column + "\"");
+        placeholders.append("?");
+    }
+
+    const QString insertSql =
+        "INSERT INTO " + quotedTable +
+        " (" + quotedColumns.join(", ") + ") VALUES (" +
+        placeholders.join(", ") + ")";
+
+    if (!query.prepare(insertSql)) {
+        const QString error = query.lastError().text();
+        db.rollback();
+
+        QMessageBox::warning(
+            this, "Import Error",
+            "Unable to prepare insert query:\n" + error);
+        return false;
+    }
+
+    for (const QStringList &values : importedRows) {
+        for (int i = 0; i < values.size(); ++i)
+            query.bindValue(i, values[i]);
+
+        if (!query.exec()) {
+            const QString error = query.lastError().text();
+            db.rollback();
+
+            QMessageBox::warning(
+                this, "Import Error",
+                "Import failed. Existing records were preserved.\n\n" +
+                    error);
+            return false;
+        }
+    }
+
+    if (!db.commit()) {
+        const QString error = db.lastError().text();
+        db.rollback();
+
+        QMessageBox::warning(
+            this, "Import Error",
+            "Unable to commit imported data:\n" + error);
+        return false;
+    }
+
+    // Refresh only the imported table.
+    if (tableView) {
+        if (isPatchTable) {
+            loadPatchTable(tableName);
+        } else if (tableSuffix == "_harness") {
+            loadHarnessTable(tableName);
+        } else if (tableSuffix == "_diode") {
+            loadDiodeTable(tableName);
+        } else if (tableSuffix == "_relay") {
+            loadRelayTable(tableName);
+        }
+    }
+
+    writeToNotes(
+        QString("Imported %1 rows into %2")
+            .arg(importedRows.size())
+            .arg(tableName));
+
+    QMessageBox::information(
+        this, "Import Successful",
+        QString("Imported %1 rows into %2.")
+            .arg(importedRows.size())
+            .arg(tableName));
+
+    return true;
+}
+
 
 
 
@@ -6738,7 +7837,7 @@ void MainWindow::on_pushButton_run_clicked()
 
     if(ui->comboBox_files->currentIndex()==0||ui->lineEdit_inspectedBy->text()==""
             ||ui->lineEdit_setNo->text()==""||ui->lineEdit_performedBy->text()==""
-            ||ui->lineEdit_projectName->text()==""||ui->textEdit_notesOutput->toPlainText().isEmpty()
+            ||ui->lineEdit_projectName->text()==""||ui->lineEdit_notes->text()==""
             ||ui->comboBox_test->currentIndex()==0)
     {
         QMessageBox::information(this,"Empty Fields","Please fill all details,select file and choose test");
@@ -6779,6 +7878,16 @@ void MainWindow::on_pushButton_run_clicked()
         QMessageBox::information(this,"Mapping Failed","Patch to Harness mapping failed.");
         return;
     }
+
+    ui->checkBox_adjustRelayColumns->setChecked(false);
+    ui->checkBox_adjustDiodeColumns->setChecked(false);
+    ui->checkBox_adjustInsuIsoColumns->setChecked(false);
+    ui->checkBox_adjustTwoWireColumns->setChecked(false);
+
+    ui->tableView_twoWireTest->setRemarksEditingEnabled(false);
+    ui->tableView_InsuIso->setRemarksEditingEnabled(false);
+    ui->tableView_diodeTest->setRemarksEditingEnabled(false);
+    ui->tableView_relay->setRemarksEditingEnabled(false);
 
 
     // -------------------------------------------------
@@ -7741,18 +8850,27 @@ void MainWindow::on_pushButton_delRow_clicked()
 void MainWindow::on_pushButton_addHarnessRow_clicked()
 {
     ui->tableView_harness->setEditTriggers(
-                QAbstractItemView::DoubleClicked |
-                QAbstractItemView::SelectedClicked |
-                QAbstractItemView::EditKeyPressed
-                );
+        QAbstractItemView::DoubleClicked |
+        QAbstractItemView::SelectedClicked |
+        QAbstractItemView::EditKeyPressed
+    );
 
+    // Always insert the new row at the end
     int row = harnessModel->rowCount();
 
     harnessModel->insertRow(row);
 
+    // Select and scroll to the newly inserted row
     ui->tableView_harness->selectRow(row);
 
-    ui->tableView_harness->scrollTo(harnessModel->index(row,0));
+    ui->tableView_harness->setCurrentIndex(
+        harnessModel->index(row, 0)
+    );
+
+    ui->tableView_harness->scrollTo(
+        harnessModel->index(row, 0),
+        QAbstractItemView::PositionAtCenter
+    );
 }
 
 void MainWindow::on_pushButton_delHarnessRow_clicked()
@@ -8562,30 +9680,6 @@ void MainWindow::drawCalibrateTable(
         "Connector", "Pin","Calibration Value(Ω)"
     };
 
-    QImage watermark(":/new/prefix1/images/charka.png");
-    auto drawWatermark = [&]()
-    {
-        if (watermark.isNull())
-            return;
-
-        qreal watermarkWidth = pageWidth * 0.75;
-        qreal watermarkHeight =
-                watermarkWidth * watermark.height()
-                / watermark.width();
-
-        QRectF watermarkRect(
-            (pageWidth - watermarkWidth) / 2,
-            (pageHeight - watermarkHeight) / 2,
-            watermarkWidth,
-            watermarkHeight
-        );
-
-        painter.save();
-        painter.setOpacity(0.50);
-        painter.drawImage(watermarkRect, watermark);
-        painter.restore();
-    };
-
     // Fonts
     QFont normalFont("Times New Roman", 11);
 
@@ -8599,8 +9693,7 @@ void MainWindow::drawCalibrateTable(
             const QFont &font,
             const QColor &background)
     {
-        if (background != Qt::transparent)
-            painter.fillRect(rect, background);
+        painter.fillRect(rect, background);
 
         painter.setPen(Qt::black);
         painter.drawRect(rect);
@@ -8647,7 +9740,6 @@ void MainWindow::drawCalibrateTable(
     int currentRow = 0;
 
     // Draw table header on the first page
-    drawWatermark();
     drawTableHeader(y);
 
     // Draw the table rows
@@ -8718,7 +9810,6 @@ void MainWindow::drawCalibrateTable(
             y = 0;
 
             // Repeat table header on the new page
-            drawWatermark();
             drawTableHeader(y);
         }
 
@@ -8735,25 +9826,25 @@ void MainWindow::drawCalibrateTable(
             if (item)
                 value = item->text();
 
-            QColor background = Qt::transparent;
+            QColor background = Qt::white;
             QFont cellFont = normalFont;
 
-            // Result column: Pass / Fail
-            if (c == 7)
-            {
+//            // Result column: Pass / Fail
+//            if (c == 7)
+//            {
 //                if (value.compare(
 //                            "Pass", Qt::CaseInsensitive) == 0)
 //                {
 //                    background = QColor(144, 238, 144);
 //                    cellFont = boldFont;
 //                }
-                if (value.compare(
-                                 "Fail", Qt::CaseInsensitive) == 0)
-                {
-                    background = QColor(255, 127, 127);
-                    cellFont = boldFont;
-                }
-            }
+//                else if (value.compare(
+//                                 "Fail", Qt::CaseInsensitive) == 0)
+//                {
+//                    background = QColor(255, 127, 127);
+//                    cellFont = boldFont;
+//                }
+//            }
 
             QRectF cell(
                         x,
@@ -9268,6 +10359,2853 @@ void MainWindow::on_pushButton_stopInsuIso_clicked()
 }
 
 void MainWindow::on_pushButton_saveInsuIso_clicked()
+{
+    if (test->isInsuIsoTestRunning())
+       {
+           QMessageBox::warning(
+               this,
+               "Test Running",
+               "Please wait until the test is completed.");
+           return;
+       }
+    failedPinsInso=0;
+    generateInsoIsoPDF();
+
+}
+void MainWindow::generateInsoIsoPDF()
+{
+    if(!model)
+    {
+        return;
+    }
+
+ //    Create PDF folder on Desktop
+    QString desktopPath =
+            QStandardPaths::writableLocation(
+                QStandardPaths::DesktopLocation);
+
+    QString testType=ui->comboBox_test->currentIndex()==2?"Isolation":"Insulation";
+
+    QString folderPath = desktopPath + "/InsoIso_Pdf";
+
+    QDir dir;
+
+    if (!dir.exists(folderPath))
+        dir.mkpath(folderPath);
+
+    // Generate filename with timestamp
+    QString timestamp =
+            QDateTime::currentDateTime()
+            .toString("yyyyMMdd_HHmmss");
+
+    QString fileName = folderPath +
+            "/"+testType+"_" + timestamp + ".pdf";
+
+    if (fileName.isEmpty())
+        return;
+
+    if (!fileName.endsWith(".pdf", Qt::CaseInsensitive))
+        fileName += ".pdf";
+
+    // Printer setup
+    QPrinter printer(QPrinter::HighResolution);
+
+    printer.setOutputFormat(QPrinter::PdfFormat);
+    printer.setOutputFileName(fileName);
+    printer.setPageSize(QPageSize(QPageSize::A4));
+    printer.setOrientation(QPrinter::Portrait);
+
+    printer.setPageMargins(
+                15, 15, 15, 20,
+                QPrinter::Millimeter);
+
+    printer.setResolution(96);
+
+    // Start painting
+    QPainter painter;
+
+    if (!painter.begin(&printer))
+    {
+        QMessageBox::warning(
+                    this,
+                    "PDF",
+                    "Unable to create PDF.");
+        return;
+    }
+
+    // Calculate page dimensions
+    QRect deviceRect =
+            printer.pageLayout().paintRectPixels(
+                printer.resolution());
+
+    const qreal pageWidth = deviceRect.width();
+    const qreal pageHeight = deviceRect.height();
+
+    const qreal bottom = pageHeight - 25;
+
+    // Count failed pins from Result column (column 8)
+
+
+    for (int row = 0;
+         row < model->rowCount();
+         ++row)
+    {
+        QStandardItem *item =
+                model->item(row, 7);
+
+        if (item &&
+            item->text().compare(
+                "Fail", Qt::CaseInsensitive) == 0)
+        {
+            ++failedPinsInso;
+        }
+    }
+
+    int pageNumber = 1;
+
+    // 1. Draw report header
+    qreal y = drawTwoWireTestHeader(
+                painter,
+                pageWidth,
+                failedPinsInso);
+
+    // 2. Draw table
+    drawInsoIsoTable(
+                painter,
+                printer,
+                pageWidth,
+                pageHeight,
+                bottom,
+                y,
+                pageNumber);
+
+    // 3. Draw notes, signatures and final page number
+    drawTwoWireTestFooter(
+                painter,
+                printer,
+                pageWidth,
+                pageHeight,
+                bottom,
+                y,
+                pageNumber);
+
+    // Finish PDF generation
+    painter.end();
+
+    QMessageBox::information(
+                this,
+                "PDF",
+                "PDF generated successfully.");
+}
+void MainWindow::drawInsoIsoTable(
+        QPainter &painter,
+        QPrinter &printer,
+        qreal pageWidth,
+        qreal pageHeight,
+        qreal bottom,
+        qreal &y,
+        int &pageNumber)
+{
+    const qreal left = 0;
+
+    // Table column widths
+    const qreal proportions[] = {
+        0.055, 0.063, 0.050, 0.175, 0.175,
+        0.142, 0.155, 0.100, 0.085
+    }; // Sum = 1.000
+
+    qreal colWidths[9];
+
+    for (int c = 0; c < 9; ++c)
+        colWidths[c] = pageWidth * proportions[c];
+
+    // Table headers
+    const QStringList headers = {
+        "S.No", "Loom\nNo","Net No","Src Net",
+        "Dstn Net","Failed Net",
+        "Exp\nValue", "Result", "Remarks"
+    };
+
+    // Fonts
+    QFont normalFont("Times New Roman", 11);
+
+    QFont boldFont("Times New Roman", 11);
+    boldFont.setBold(true);
+
+    // Draw a table cell
+    auto drawCell = [&](
+            const QRectF &rect,
+            const QString &value,
+            const QFont &font,
+            const QColor &background)
+    {
+        painter.fillRect(rect, background);
+
+        painter.setPen(Qt::black);
+        painter.drawRect(rect);
+
+        painter.setFont(font);
+
+        QRectF textRect = rect.adjusted(3, 2, -3, -2);
+
+        painter.drawText(
+                    textRect,
+                    Qt::AlignCenter |
+                    Qt::TextWordWrap |
+                    Qt::TextWrapAnywhere,
+                    value);
+    };
+
+    // Draw the table header
+    auto drawTableHeader = [&](qreal &currentY)
+    {
+        const qreal headerHeight = 45;
+        qreal x = left;
+
+        for (int c = 0; c < 9; ++c)
+        {
+            QRectF cell(
+                        x,
+                        currentY,
+                        colWidths[c],
+                        headerHeight);
+
+            drawCell(
+                        cell,
+                        headers[c],
+                        boldFont,
+                        QColor(204, 204, 204));
+
+            x += colWidths[c];
+        }
+
+        currentY += headerHeight;
+    };
+
+    int totalRows = model->rowCount();
+    int currentRow = 0;
+
+    // Draw table header on the first page
+    drawTableHeader(y);
+
+    // Draw the table rows
+    while (currentRow < totalRows)
+    {
+        // Calculate dynamic row height
+        qreal rowHeight = 30;
+
+        for (int c = 0; c < 9; ++c)
+        {
+            QString value;
+
+            QStandardItem *item =
+                    model->item(currentRow, c);
+
+            if (item)
+                value = item->text();
+
+            QFont cellFont = normalFont;
+
+            if (c == 7 &&
+                (value.compare(
+                     "Pass", Qt::CaseInsensitive) == 0 ||
+                 value.compare(
+                     "Fail", Qt::CaseInsensitive) == 0))
+            {
+                cellFont = boldFont;
+            }
+
+            QFontMetricsF metrics(cellFont);
+
+            QRectF textRect = metrics.boundingRect(
+                        QRectF(
+                            0, 0,
+                            qMax(1, static_cast<int>(
+                                 colWidths[c] - 8)),
+                            10000),
+                        Qt::AlignCenter |
+                        Qt::TextWordWrap |
+                        Qt::TextWrapAnywhere,
+                        value);
+
+            rowHeight = qMax<qreal>(
+                        rowHeight,
+                        textRect.height() +20);
+        }
+
+        // Start a new page if the row will not fit
+        if (y + rowHeight > bottom)
+        {
+            // Current page footer
+            painter.setFont(boldFont);
+            painter.setPen(Qt::black);
+
+            painter.drawText(
+                        QRectF(
+                            0,
+                            pageHeight - 25,
+                            pageWidth,
+                            15),
+                        Qt::AlignCenter,
+                        "Page " + QString::number(pageNumber));
+
+            printer.newPage();
+
+            ++pageNumber;
+
+            y = 0;
+
+            // Repeat table header on the new page
+            drawTableHeader(y);
+        }
+
+        // Draw current row
+        qreal x = left;
+
+        for (int c = 0; c < 9; ++c)
+        {
+            QString value;
+
+            QStandardItem *item =
+                    model->item(currentRow, c);
+
+            if (item)
+                value = item->text();
+
+            QColor background = Qt::white;
+            QFont cellFont = normalFont;
+
+            // Result column: Pass / Fail
+//            if (c == 7)
+//            {
+//                if (value.compare(
+//                            "Pass", Qt::CaseInsensitive) == 0)
+//                {
+//                    background = QColor(144, 238, 144);
+//                    cellFont = boldFont;
+//                }
+//                else if (value.compare(
+//                                 "Fail", Qt::CaseInsensitive) == 0)
+//                {
+//                    background = QColor(255, 127, 127);
+//                    cellFont = boldFont;
+//                }
+//            }
+
+            QRectF cell(
+                        x,
+                        y,
+                        colWidths[c],
+                        rowHeight);
+
+            drawCell(
+                        cell,
+                        value,
+                        cellFont,
+                        background);
+
+            x += colWidths[c];
+        }
+
+        y += rowHeight;
+        ++currentRow;
+    }
+    y+=20;
+}
+
+void MainWindow::on_pushButton_openInsuIsoFiles_clicked()
+{
+    if (test->isInsuIsoTestRunning())
+       {
+           QMessageBox::warning(
+               this,
+               "Test Running",
+               "Please wait until the test is completed.");
+           return;
+       }
+
+    QString desktopPath =
+            QStandardPaths::writableLocation(
+                QStandardPaths::DesktopLocation);
+
+    QString testType=ui->comboBox_test->currentIndex()==2?"Isolation":"Insulation";
+
+    QString folderPath = desktopPath + "/InsoIso_Pdf";
+
+    QDir dir;
+
+    if (!dir.exists(folderPath))
+        dir.mkpath(folderPath);
+
+    // Open the folder in File Explorer
+    QDesktopServices::openUrl(
+                QUrl::fromLocalFile(folderPath));
+
+}
+
+void MainWindow::on_pushButton_saveTwoWirePdf_clicked()
+{
+    if (test->isTwoWireTestRunning())
+       {
+           QMessageBox::warning(
+               this,
+               "Test Running",
+               "Please wait until the test is completed.");
+           return;
+       }
+     failedPinsCount = 0;
+     generateTwoWireTestPDF();
+}
+
+
+qreal MainWindow::drawTwoWireTestHeader(
+        QPainter &painter,
+        qreal pageWidth,
+        int failedPinsCount)
+{
+    QImage solarLogo(":/new/prefix1/images/solar1.png");
+    QImage drdoLogo(":/new/prefix1/images/drdo.png");
+
+    const qreal logoWidth = 105;
+    const qreal logoHeight = 75;
+
+    QFont normalFont("Times New Roman", 11);
+    QFont boldFont("Times New Roman", 11);
+    boldFont.setBold(true);
+
+    QFont titleFont("Times New Roman", 14);
+    titleFont.setBold(true);
+
+    QFont companyFont("Times New Roman", 16);
+    companyFont.setBold(true);
+
+    if (!solarLogo.isNull())
+        painter.drawImage(QRectF(0, 0, logoWidth, logoHeight),
+                          solarLogo);
+
+    if (!drdoLogo.isNull())
+        painter.drawImage(QRectF(pageWidth - logoWidth, 0,
+                                 logoWidth, logoHeight),
+                          drdoLogo);
+
+    painter.setPen(Qt::black);
+    painter.setFont(companyFont);
+
+    painter.drawText(
+        QRectF(logoWidth,45, pageWidth - 2 * logoWidth, 25),
+      Qt::AlignCenter,
+        "SOLAR DEFENCE AND AEROSPACE LIMITED");
+
+    painter.setFont(titleFont);
+
+    painter.drawText(
+        QRectF(0,85, pageWidth, 30),
+        Qt::AlignCenter,
+        "GNC KIT CABLE HARNESS TEST REPORT");
+
+    qreal y = 155;
+
+    painter.setFont(normalFont);
+
+
+    QString testType=testCalibration?"Calibration":ui->comboBox_test->currentText();
+
+    painter.drawText(QRectF(0, y, pageWidth, 14),
+                     Qt::AlignLeft,
+                     "Date : " +
+                     QDate::currentDate().toString("dd-MM-yyyy"));
+    y += 22;
+
+    painter.drawText(QRectF(0, y, pageWidth, 14),
+                     Qt::AlignLeft,
+                     "Time : " +
+                     QTime::currentTime().toString("hh:mm:ss AP"));
+    y += 22;
+    painter.drawText(QRectF(0, y, pageWidth, 14),
+                     Qt::AlignLeft,
+                     "Test Type : " +
+                    testType);
+    y += 22;
+    if(!testCalibration)
+    {
+
+    painter.drawText(QRectF(0, y, pageWidth, 14),
+                     Qt::AlignLeft,
+                     "Set No : " + ui->lineEdit_setNo->text());
+    y += 22;
+
+
+
+    QString result = (failedPinsCount == 0) ? "Pass" : "Fail";
+
+    painter.drawText(QRectF(0, y, pageWidth, 14),
+                     Qt::AlignLeft,
+                     "Final Result : " + result);
+    y += 22;
+
+    painter.setFont(boldFont);
+
+
+    painter.drawText(QRectF(0, y, pageWidth, 14),
+                     Qt::AlignLeft,
+                     "Total Failed Pins : " +
+                     QString::number(failedPinsCount));
+    }
+
+    return y + 50;
+    qDebug()<<"header part completed successfully";
+}
+
+void MainWindow::generateTwoWireTestPDF()
+{
+    if (!m_twoWireTestModel)
+        return;
+
+ //    Create PDF folder on Desktop
+    QString desktopPath =
+            QStandardPaths::writableLocation(
+                QStandardPaths::DesktopLocation);
+
+    QString folderPath = desktopPath + "/TwoWire_Pdf";
+
+    QDir dir;
+
+    if (!dir.exists(folderPath))
+        dir.mkpath(folderPath);
+
+    // Generate filename with timestamp
+    QString timestamp =
+            QDateTime::currentDateTime()
+            .toString("yyyyMMdd_HHmmss");
+
+    QString fileName = folderPath +
+            "/TwoWireTest_" + timestamp + ".pdf";
+
+    if (fileName.isEmpty())
+        return;
+
+    if (!fileName.endsWith(".pdf", Qt::CaseInsensitive))
+        fileName += ".pdf";
+
+    // Printer setup
+    QPrinter printer(QPrinter::HighResolution);
+
+    printer.setOutputFormat(QPrinter::PdfFormat);
+    printer.setOutputFileName(fileName);
+    printer.setPageSize(QPageSize(QPageSize::A4));
+    printer.setOrientation(QPrinter::Portrait);
+
+    printer.setPageMargins(
+                15, 15, 15, 20,
+                QPrinter::Millimeter);
+
+    printer.setResolution(96);
+
+    // Start painting
+    QPainter painter;
+
+    if (!painter.begin(&printer))
+    {
+        QMessageBox::warning(
+                    this,
+                    "PDF",
+                    "Unable to create PDF.");
+        return;
+    }
+
+    // Calculate page dimensions
+    QRect deviceRect =
+            printer.pageLayout().paintRectPixels(
+                printer.resolution());
+
+    const qreal pageWidth = deviceRect.width();
+    const qreal pageHeight = deviceRect.height();
+
+    const qreal bottom = pageHeight - 25;
+
+    // Count failed pins from Result column (column 8)
+    int failedPinsCount = 0;
+
+    for (int row = 0;
+         row < m_twoWireTestModel->rowCount();
+         ++row)
+    {
+        QStandardItem *item =
+                m_twoWireTestModel->item(row, 8);
+
+        if (item &&
+            item->text().compare(
+                "Fail", Qt::CaseInsensitive) == 0)
+        {
+            ++failedPinsCount;
+        }
+    }
+
+    int pageNumber = 1;
+
+    // 1. Draw report header
+    qreal y = drawTwoWireTestHeader(
+                painter,
+                pageWidth,
+                failedPinsCount);
+
+    // 2. Draw table
+    drawTwoWireTestTable(
+                painter,
+                printer,
+                pageWidth,
+                pageHeight,
+                bottom,
+                y,
+                pageNumber);
+
+    // 3. Draw notes, signatures and final page number
+    drawTwoWireTestFooter(
+                painter,
+                printer,
+                pageWidth,
+                pageHeight,
+                bottom,
+                y,
+                pageNumber);
+
+    // Finish PDF generation
+    painter.end();
+
+    QMessageBox::information(
+                this,
+                "PDF",
+                "PDF generated successfully.");
+}
+void MainWindow::drawDiodeTestTable(
+        QPainter &painter,
+        QPrinter &printer,
+        qreal pageWidth,
+        qreal pageHeight,
+        qreal bottom,
+        qreal &y,
+        int &pageNumber)
+{
+    const qreal left = 0;
+
+    // Table column widths
+    const qreal proportions[] = {
+        0.055, 0.085, 0.175, 0.072, 0.175,
+        0.075, 0.160, 0.105, 0.098
+    };
+
+    qreal colWidths[9];
+   // qDebug() << "Column widths count:" << colWidths.size();
+    qDebug() << "Diode model columns:" << diodeModel->columnCount();
+
+    for (int c = 0; c < 9; ++c)
+        colWidths[c] = pageWidth * proportions[c];
+
+    // Table headers
+    const QStringList headers = {
+        "S.No", "Loom", "Src Conn\n(Anode)", "Src\nPin",
+        "Dstn Conn\n(Cathode)", "Dstn\nPin",
+        "Voltage\nDrop Across\nDiode", "Result", "Remarks"
+    };
+
+    // Fonts
+    QFont normalFont("Times New Roman", 11);
+
+    QFont boldFont("Times New Roman", 11);
+    boldFont.setBold(true);
+
+    // Draw a table cell
+    auto drawCell = [&](
+            const QRectF &rect,
+            const QString &value,
+            const QFont &font,
+            const QColor &background)
+    {
+        painter.fillRect(rect, background);
+
+        painter.setPen(Qt::black);
+        painter.drawRect(rect);
+
+        painter.setFont(font);
+
+        QRectF textRect = rect.adjusted(3, 2, -3, -2);
+
+        painter.drawText(
+                    textRect,
+                    Qt::AlignCenter |
+                    Qt::TextWordWrap |
+                    Qt::TextWrapAnywhere,
+                    value);
+    };
+
+    // Draw the table header
+    auto drawTableHeader = [&](qreal &currentY)
+    {
+        const qreal headerHeight = 55;
+        qreal x = left;
+
+        for (int c = 0; c < 9; ++c)
+        {
+            QRectF cell(
+                        x,
+                        currentY,
+                        colWidths[c],
+                        headerHeight);
+
+            drawCell(
+                        cell,
+                        headers[c],
+                        boldFont,
+                        QColor(204, 204, 204));
+
+            x += colWidths[c];
+        }
+
+        currentY += headerHeight;
+    };
+    qDebug()<<"header part completed";
+
+    int totalRows = m_diodeTestModel->rowCount();
+    qDebug()<<"totalRows"<<totalRows;
+    int currentRow = 0;
+
+    // Draw table header on the first page
+    drawTableHeader(y);
+
+    // Draw the table rows
+    while (currentRow < totalRows)
+    {
+        // Calculate dynamic row height
+
+        qreal rowHeight =30;
+
+        for (int c = 0; c < 9; ++c)
+        {
+            QString value;
+
+
+            QStandardItem *item =
+                    m_diodeTestModel->item(currentRow, c);
+
+            if (item)
+                value = item->text();
+
+
+            QFont cellFont = normalFont;
+
+            if (c == 7&&
+                (value.compare(
+                     "Pass", Qt::CaseInsensitive) == 0 ||
+                 value.compare(
+                     "Pass", Qt::CaseInsensitive) != 0))
+            {
+                cellFont = boldFont;
+            }
+
+            QFontMetricsF metrics(cellFont);
+
+            QRectF textRect = metrics.boundingRect(
+                        QRectF(
+                            0, 0,
+                            qMax(1, static_cast<int>(
+                                 colWidths[c] - 8)),
+                            10000),
+                        Qt::AlignCenter |
+                        Qt::TextWordWrap |
+                        Qt::TextWrapAnywhere,
+                        value);
+
+            rowHeight = qMax<qreal>(
+                        rowHeight,
+                        textRect.height() + 20.0);
+        }
+
+        // Start a new page if the row will not fit
+        if (y + rowHeight > bottom)
+        {
+            // Current page footer
+            painter.setFont(boldFont);
+            painter.setPen(Qt::black);
+
+            painter.drawText(
+                        QRectF(
+                            0,
+                            pageHeight - 25,
+                            pageWidth,
+                            15),
+                        Qt::AlignCenter,
+                        "Page " + QString::number(pageNumber));
+
+            printer.newPage();
+
+            ++pageNumber;
+
+            y = 0;
+
+            // Repeat table header on the new page
+            drawTableHeader(y);
+        }
+
+        // Draw current row
+        qreal x = left;
+
+        for (int c = 0; c < 9; ++c)
+        {
+            QString value;
+
+            QStandardItem *item =
+                    m_diodeTestModel->item(currentRow, c);
+
+            if (item)
+                value = item->text();
+
+            QColor background = Qt::white;
+            QFont cellFont = normalFont;
+
+            // Result column: Pass / Fail
+//            if (c == 7)
+//            {
+//                if (value.compare(
+//                            "Pass", Qt::CaseInsensitive) == 0)
+//                {
+//                    background = QColor(144, 238, 144);
+//                    cellFont = boldFont;
+//                }
+//                else if (value.compare(
+//                                 "Pass", Qt::CaseInsensitive) != 0)
+//                {
+//                    background = QColor(255, 127, 127);
+//                    cellFont = boldFont;
+//                }
+//            }
+
+            QRectF cell(
+                        x,
+                        y,
+                        colWidths[c],
+                        rowHeight);
+
+            drawCell(
+                        cell,
+                        value,
+                        cellFont,
+                        background);
+
+            x += colWidths[c];
+        }
+
+        y += rowHeight;
+        ++currentRow;
+    }
+    y+=20;
+}
+void MainWindow::drawTwoWireTestTable(
+        QPainter &painter,
+        QPrinter &printer,
+        qreal pageWidth,
+        qreal pageHeight,
+        qreal bottom,
+        qreal &y,
+        int &pageNumber)
+{
+    const qreal left = 0;
+
+    // Table column widths
+    const qreal proportions[] = {
+        0.055, 0.085, 0.175, 0.065, 0.175,
+        0.075, 0.085, 0.105, 0.080, 0.100
+    };
+
+    qreal colWidths[10];
+
+    for (int c = 0; c < 10; ++c)
+        colWidths[c] = pageWidth * proportions[c];
+
+    // Table headers
+    const QStringList headers = {
+        "S.No", "Cable", "Src Conn", "Src\nPin",
+        "Dstn Conn", "Dstn\nPin",
+        "Exp\nValue", "Measured", "Result", "Remarks"
+    };
+
+    // Fonts
+    QFont normalFont("Times New Roman", 11);
+
+    QFont boldFont("Times New Roman", 11);
+    boldFont.setBold(true);
+
+    // Draw a table cell
+    auto drawCell = [&](
+            const QRectF &rect,
+            const QString &value,
+            const QFont &font,
+            const QColor &background)
+    {
+        painter.fillRect(rect, background);
+
+        painter.setPen(Qt::black);
+        painter.drawRect(rect);
+
+        painter.setFont(font);
+
+        QRectF textRect = rect.adjusted(3, 2, -3, -2);
+
+        painter.drawText(
+                    textRect,
+                    Qt::AlignCenter |
+                    Qt::TextWordWrap |
+                    Qt::TextWrapAnywhere,
+                    value);
+    };
+
+    // Draw the table header
+    auto drawTableHeader = [&](qreal &currentY)
+    {
+        const qreal headerHeight = 45;
+        qreal x = left;
+
+        for (int c = 0; c < 10; ++c)
+        {
+            QRectF cell(
+                        x,
+                        currentY,
+                        colWidths[c],
+                        headerHeight);
+
+            drawCell(
+                        cell,
+                        headers[c],
+                        boldFont,
+                        QColor(204, 204, 204));
+
+            x += colWidths[c];
+        }
+
+        currentY += headerHeight;
+    };
+
+    int totalRows = m_twoWireTestModel->rowCount();
+    int currentRow = 0;
+
+    // Draw table header on the first page
+    drawTableHeader(y);
+
+    // Draw the table rows
+    while (currentRow < totalRows)
+    {
+        // Calculate dynamic row height
+        qreal rowHeight = 30;
+
+        for (int c = 0; c < 10; ++c)
+        {
+            QString value;
+
+            QStandardItem *item =
+                    m_twoWireTestModel->item(currentRow, c);
+
+            if (item)
+                value = item->text();
+
+            QFont cellFont = normalFont;
+
+            if (c == 8 &&
+                (value.compare(
+                     "Pass", Qt::CaseInsensitive) == 0 ||
+                 value.compare(
+                     "Fail", Qt::CaseInsensitive) == 0))
+            {
+                cellFont = boldFont;
+            }
+
+            QFontMetricsF metrics(cellFont);
+
+            QRectF textRect = metrics.boundingRect(
+                        QRectF(
+                            0, 0,
+                            qMax(1, static_cast<int>(
+                                 colWidths[c] - 8)),
+                            10000),
+                        Qt::AlignCenter |
+                        Qt::TextWordWrap |
+                        Qt::TextWrapAnywhere,
+                        value);
+
+            rowHeight = qMax<qreal>(
+                        rowHeight,
+                        textRect.height() + 20);
+        }
+
+        // Start a new page if the row will not fit
+        if (y + rowHeight > bottom)
+        {
+            // Current page footer
+            painter.setFont(boldFont);
+            painter.setPen(Qt::black);
+
+            painter.drawText(
+                        QRectF(
+                            0,
+                            pageHeight - 25,
+                            pageWidth,
+                            15),
+                        Qt::AlignCenter,
+                        "Page " + QString::number(pageNumber));
+
+            printer.newPage();
+
+            ++pageNumber;
+
+            y = 0;
+
+            // Repeat table header on the new page
+            drawTableHeader(y);
+        }
+
+        // Draw current row
+        qreal x = left;
+
+        for (int c = 0; c < 10; ++c)
+        {
+            QString value;
+
+            QStandardItem *item =
+                    m_twoWireTestModel->item(currentRow, c);
+
+            if (item)
+                value = item->text();
+
+            QColor background = Qt::white;
+            QFont cellFont = normalFont;
+
+            // Result column: Pass / Fail
+//            if (c == 8)
+//            {
+//                if (value.compare(
+//                            "Pass", Qt::CaseInsensitive) == 0)
+//                {
+//                    background = QColor(144, 238, 144);
+//                    cellFont = boldFont;
+//                }
+//                else if (value.compare(
+//                                 "Fail", Qt::CaseInsensitive) == 0)
+//                {
+//                    background = QColor(255, 127, 127);
+//                    cellFont = boldFont;
+//                }
+//            }
+
+            QRectF cell(
+                        x,
+                        y,
+                        colWidths[c],
+                        rowHeight);
+
+            drawCell(
+                        cell,
+                        value,
+                        cellFont,
+                        background);
+
+            x += colWidths[c];
+        }
+
+        y += rowHeight;
+        ++currentRow;
+    }
+    y+=20;
+}
+
+void MainWindow::drawTwoWireTestFooter(
+        QPainter &painter,
+        QPrinter &printer,
+        qreal pageWidth,
+        qreal pageHeight,
+        qreal bottom,
+        qreal &y,
+        int &pageNumber)
+{
+    Q_UNUSED(printer);
+
+    QString notes = ui->lineEdit_notes->text();
+
+    QFont normalFont("Times New Roman", 11);
+    QFont boldFont("Times New Roman", 11);
+    boldFont.setBold(true);
+
+    qreal left = 20;
+    qreal right = 20;
+    qreal notesWidth = pageWidth - left - right;
+
+    // Prepare notes with automatic wrapping
+    QTextDocument notesDocument;
+    notesDocument.setDefaultFont(normalFont);
+    notesDocument.setPlainText("Notes: " + notes);
+
+    QTextOption textOption;
+    textOption.setWrapMode(
+        QTextOption::WrapAtWordBoundaryOrAnywhere);
+    notesDocument.setDefaultTextOption(textOption);
+    notesDocument.setTextWidth(notesWidth);
+
+    qreal notesHeight = qMax<qreal>(
+        25.0, notesDocument.size().height() + 10.0);
+
+    qreal signatureHeight = 60.0;
+    qreal requiredHeight = notesHeight + signatureHeight + 35.0;
+
+    if (y + requiredHeight > bottom)
+    {
+        painter.setFont(boldFont);
+        painter.setPen(Qt::black);
+
+        painter.drawText(
+            QRectF(0, pageHeight - 25, pageWidth, 15),
+            Qt::AlignCenter,
+            "Page " + QString::number(pageNumber));
+
+        printer.newPage();
+        ++pageNumber;
+
+        y = 40;
+    }
+
+    // Draw complete notes text
+    painter.save();
+    painter.translate(left, y);
+
+    notesDocument.drawContents(
+        &painter,
+        QRectF(0, 0, notesWidth,
+               notesDocument.size().height()));
+
+    painter.restore();
+
+    y += notesHeight + 80;
+
+    // Signature headings
+    painter.setFont(boldFont);
+    painter.setPen(Qt::black);
+
+    painter.drawText(
+        QRectF(0, y, pageWidth / 3, 20),
+        Qt::AlignLeft,
+        "Test Performed By:");
+
+    painter.drawText(
+        QRectF(pageWidth / 3, y, pageWidth / 3, 20),
+        Qt::AlignHCenter,
+        "Prod. In-Charge");
+
+    painter.drawText(
+        QRectF(2 * pageWidth / 3, y, pageWidth / 3, 20),
+        Qt::AlignRight,
+        "Inspected By:");
+
+    // Page number on the final page
+    painter.drawText(
+        QRectF(0, pageHeight - 25, pageWidth, 15),
+        Qt::AlignCenter,
+        "Page " + QString::number(pageNumber));
+}
+void MainWindow::on_pushButton_selfTestSave_clicked()
+{
+    QString folderPath =
+            QStandardPaths::writableLocation(
+                QStandardPaths::DesktopLocation)
+            + "/SelfTest_Pdf";
+
+    QDir dir;
+    if (!dir.exists(folderPath) && !dir.mkpath(folderPath))
+    {
+        QMessageBox::warning(this, "PDF",
+                             "Unable to create PDF folder.");
+        return;
+    }
+
+void MainWindow::on_pushButton_calibrationTest_clicked()
+{
+    // -------------------------------------------------
+    // Create Calibration table model
+    // -------------------------------------------------
+    testCalibration=true;
+    m_calibrationModel =
+            new QStandardItemModel(
+                1920,
+                3,
+                this);
+    QString fileName = folderPath + "/SelfTest_" +
+            QDateTime::currentDateTime().toString(
+                "yyyyMMdd_HHmmss") + ".pdf";
+
+    QPrinter printer(QPrinter::HighResolution);
+    printer.setOutputFormat(QPrinter::PdfFormat);
+    printer.setOutputFileName(fileName);
+    printer.setPageSize(QPageSize(QPageSize::A4));
+    printer.setPageOrientation(QPageLayout::Portrait);
+
+    printer.setPageMargins(
+                12, 12, 12, 20,
+                QPrinter::Millimeter);
+    printer.setResolution(96);
+
+    QPainter painter;
+
+    if (!painter.begin(&printer))
+    {
+        QMessageBox::warning(this, "PDF",
+                             "Unable to create PDF.");
+        return;
+    }
+
+    QRect pageRect = printer.pageLayout().paintRectPixels(
+                printer.resolution());
+
+    const qreal pageWidth = pageRect.width();
+    const qreal pageHeight = pageRect.height();
+
+    const qreal left = 50;
+    const qreal right = 50;
+    const qreal top = 50;
+    const qreal bottomMargin = 55;
+
+    QFont titleFont("Times New Roman", 14, QFont::Bold);
+    QFont normalFont("Times New Roman", 11);
+    QFont companyFont("Times New Roman", 16, QFont::Bold);
+   // QFont pageFont("Times New Roman", 9);
+
+    QFont boldFont("Times New Roman", 11);
+    boldFont.setBold(true);
+
+    QStringList values = {
+        ui->textEdit_1->toPlainText(),
+        ui->textEdit_2->toPlainText(),
+        ui->textEdit_3->toPlainText(),
+        ui->textEdit_4->toPlainText(),
+        ui->textEdit_5->toPlainText(),
+        ui->textEdit_6->toPlainText(),
+        ui->textEdit_7->toPlainText(),
+        ui->textEdit_8->toPlainText(),
+        ui->textEdit_9->toPlainText(),
+        ui->textEdit_10->toPlainText(),
+        ui->textEdit_11->toPlainText(),
+        ui->textEdit_12->toPlainText(),
+        ui->textEdit_13->toPlainText(),
+        ui->textEdit_14->toPlainText(),
+        ui->textEdit_15->toPlainText()
+    };
+
+    painter.setPen(Qt::black);
+
+    // Header: first page only
+    QImage solarLogo(":/new/prefix1/images/solar1.png");
+    QImage drdoLogo(":/new/prefix1/images/drdo.png");
+
+    const qreal logoWidth = 105;
+    const qreal logoHeight = 75;
+
+    if (!solarLogo.isNull())
+    {
+        painter.drawImage(
+                    QRectF(10, 0, logoWidth, logoHeight),
+                    solarLogo);
+    }
+
+    if (!drdoLogo.isNull())
+    {
+        painter.drawImage(
+                    QRectF(pageWidth - logoWidth - 10, 0,
+                           logoWidth, logoHeight),
+                    drdoLogo);
+    }
+
+    painter.setFont(companyFont);
+    painter.drawText(
+                QRectF(logoWidth+5, 50,
+                       pageWidth - 2 * logoWidth, 25),
+                Qt::AlignCenter,
+                "SOLAR DEFENCE AND AEROSPACE LIMITED");
+
+    painter.setFont(titleFont);
+    painter.drawText(
+                QRectF(0, 85, pageWidth, 30),
+                Qt::AlignCenter,
+                "GNC KIT CABLE HARNESS TEST REPORT");
+
+    painter.drawText(
+                QRectF(left,115,
+                       pageWidth - left - right, 30),
+                Qt::AlignCenter,
+                "SELF TEST REPORT");
+
+    qreal y = 180;
+
+    int pageNumber = 1;
+
+    // Draw page number
+    auto drawPageNumber = [&]()
+    {
+        painter.save();
+
+        painter.setFont(boldFont);
+        painter.setPen(Qt::black);
+
+        painter.drawText(
+                    QRectF(0, pageHeight - 30,
+                           pageWidth, 20),
+                    Qt::AlignCenter,
+                    "Page " + QString::number(pageNumber));
+
+        painter.restore();
+    };
+
+    // Draw four-sided page border
+    auto drawPageBorder = [&](bool firstPage)
+    {
+        painter.save();
+        painter.setPen(QPen(Qt::black, 1));
+
+        qreal borderLeft = 12;
+        qreal borderRight = pageWidth - 12;
+        qreal borderTop = firstPage ? 160- 10 : 12;
+        qreal borderBottom = pageHeight - 40;
+
+        painter.drawRect(
+                    QRectF(borderLeft, borderTop,
+                           borderRight - borderLeft,
+                           borderBottom - borderTop));
+
+        painter.restore();
+    };
+
+    // Two-column layout
+    const qreal columnGap = 25;
+
+    const qreal columnWidth =
+            (pageWidth - left - right - columnGap) / 2;
+
+    // 0 = left column, 1 = right column
+    int column = 0;
+
+    // Start below the header on the first page
+    qreal columnY[2] = {y, y};
+
+    // Available bottom position for text
+    const qreal contentBottom = pageHeight - bottomMargin;
+
+
+    for (const QString &text : values)
+    {
+
+        QString displayText = text.trimmed();
+
+        QTextDocument document;
+        document.setDefaultFont(normalFont);
+        document.setPlainText(displayText);
+        document.setTextWidth(columnWidth);
+
+        QTextOption textOption;
+        textOption.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+        document.setDefaultTextOption(textOption);
+        qreal textHeight = document.size().height();
+        qreal rowHeight = qMax(30.0, textHeight + 12);
+
+void MainWindow::on_pushButton_calibrationRun_clicked()
+{
+    if (test->isCalibrationRunning())
+       {
+           QMessageBox::warning(
+               this,
+               "Calibration Test Running",
+               "Calibration test is already running.");
+           return;
+       }
+    testCalibration=true;
+        // Move to the next column/page if required
+        if (columnY[column] + rowHeight > contentBottom)
+        {
+            if (column == 0)
+            {
+                column = 1;
+            }
+            else
+            {
+                drawPageBorder(pageNumber==1);
+                drawPageNumber();
+
+                printer.newPage();
+                pageNumber++;
+
+                column = 0;
+                columnY[0] = top;
+                columnY[1] = top;
+            }
+        }
+
+        qreal x = (column == 0)
+                  ? left
+                  : left + columnWidth + columnGap;
+
+        // Draw the complete text, preserving its line breaks
+        painter.save();
+        painter.translate(x, columnY[column]);
+        document.drawContents(
+            &painter,
+            QRectF(0, 0, columnWidth, textHeight)
+        );
+        painter.restore();
+
+//        // Separator between separate QTextEdit entries
+//        painter.setPen(QPen(Qt::lightGray, 0.5));
+//        painter.drawLine(
+//            QPointF(x, columnY[column] + rowHeight),
+//            QPointF(x + columnWidth, columnY[column] + rowHeight)
+//        );
+
+        columnY[column] += rowHeight + 5;
+}
+
+    // Draw border and page number on the final page
+    drawPageBorder(pageNumber == 1);
+    //drawPageNumber();
+    qDebug()<<"lastly y value is"<<columnY[0];
+    const qreal bottom = pageHeight - 25;
+
+    drawTwoWireTestFooter(
+                painter,
+                printer,
+                pageWidth,
+                pageHeight,
+                bottom,
+                columnY[0],
+                pageNumber);
+
+    painter.end();
+
+    QMessageBox::information(
+                this,
+                "PDF",
+                "Self-test PDF saved successfully:\n" + fileName);
+}
+
+void MainWindow::on_pushButton_stopDiodeTest_clicked()
+{
+    QMessageBox::StandardButton reply =
+            QMessageBox::question(
+                this,
+                "Abort Diode Test",
+                "Are you sure you want to abort the Diode test?",
+                QMessageBox::Yes |
+                QMessageBox::No);
+
+    if (reply == QMessageBox::Yes)
+    {
+        test->abortCommand();
+    }
+}
+
+void MainWindow::on_pushButton_backFromDiodeTest_clicked()
+{
+    if (test->isDiodeTestRunning())
+    {
+        QMessageBox::warning(
+            this,
+            "Diode Test",
+            "Please wait, Diode test is running.");
+        return;
+    }
+
+    ui->stackedWidget->setCurrentWidget(ui->page_test);
+}
+
+void MainWindow::on_pushButton_saveDiodeTest_clicked()
+{
+    if (test->isDiodeTestRunning())
+    {
+        QMessageBox::warning(
+            this,
+            "Diode Test",
+            "Please wait, Diode test is running.");
+        return;
+    }
+
+    failedDiodeCount = 0;
+    generateDiodeTestPDF();
+    // Add Save functionality here
+}
+void MainWindow::generateDiodeTestPDF()
+{
+    if (!m_diodeTestModel)
+        return;
+
+ //    Create PDF folder on Desktop
+    QString desktopPath =
+            QStandardPaths::writableLocation(
+                QStandardPaths::DesktopLocation);
+
+    QString folderPath = desktopPath + "/DiodeTest_Pdf";
+
+    QDir dir;
+
+    if (!dir.exists(folderPath))
+        dir.mkpath(folderPath);
+
+    // Generate filename with timestamp
+    QString timestamp =
+            QDateTime::currentDateTime()
+            .toString("yyyyMMdd_HHmmss");
+
+    QString fileName = folderPath +
+            "/DiodeTest_" + timestamp + ".pdf";
+
+    if (fileName.isEmpty())
+        return;
+
+    if (!fileName.endsWith(".pdf", Qt::CaseInsensitive))
+        fileName += ".pdf";
+
+    // Printer setup
+    QPrinter printer(QPrinter::HighResolution);
+
+    printer.setOutputFormat(QPrinter::PdfFormat);
+    printer.setOutputFileName(fileName);
+    printer.setPageSize(QPageSize(QPageSize::A4));
+    printer.setOrientation(QPrinter::Portrait);
+
+    printer.setPageMargins(
+                15, 15, 15, 20,
+                QPrinter::Millimeter);
+
+    printer.setResolution(96);
+
+    // Start painting
+    QPainter painter;
+
+    if (!painter.begin(&printer))
+    {
+        QMessageBox::warning(
+                    this,
+                    "PDF",
+                    "Unable to create PDF.");
+        return;
+    }
+
+    // Calculate page dimensions
+    QRect deviceRect =
+            printer.pageLayout().paintRectPixels(
+                printer.resolution());
+
+    const qreal pageWidth = deviceRect.width();
+    const qreal pageHeight = deviceRect.height();
+
+    const qreal bottom = pageHeight - 25;
+
+    // Count failed pins from Result column (column 8)
+     failedDiodeCount = 0;
+    for (int row = 0;
+         row < m_diodeTestModel->rowCount();
+         ++row)
+    {
+        QStandardItem *item =
+                m_diodeTestModel->item(row, 7);
+
+        if (item &&
+            item->text().compare(
+                "PASS", Qt::CaseInsensitive) != 0)
+        {
+            ++failedDiodeCount;
+        }
+    }
+
+    int pageNumber = 1;
+
+    // 1. Draw report header
+    qreal y = drawTwoWireTestHeader(
+                painter,
+                pageWidth,
+                failedDiodeCount);
+
+    // 2. Draw table
+    drawDiodeTestTable(
+                painter,
+                printer,
+                pageWidth,
+                pageHeight,
+                bottom,
+                y,
+                pageNumber);
+
+    // 3. Draw notes, signatures and final page number
+    drawTwoWireTestFooter(
+                painter,
+                printer,
+                pageWidth,
+                pageHeight,
+                bottom,
+                y,
+                pageNumber);
+
+    // Finish PDF generation
+    painter.end();
+
+    QMessageBox::information(
+                this,
+                "PDF",
+                "PDF generated successfully.");
+}
+
+
+void MainWindow::on_pushButton_openDiodeTest_clicked()
+{
+    if (test->isDiodeTestRunning())
+    {
+        QMessageBox::warning(
+            this,
+            "Diode Test",
+            "Please wait, Diode test is running.");
+        return;
+    }
+
+    // Add Open Files functionality here
+    QString desktopPath =
+            QStandardPaths::writableLocation(
+                QStandardPaths::DesktopLocation);
+
+    QString folderPath = desktopPath + "/DiodeTest_Pdf";
+
+    QDir dir;
+
+    if (!dir.exists(folderPath))
+        dir.mkpath(folderPath);
+    QDesktopServices::openUrl(
+                QUrl::fromLocalFile(folderPath));
+
+}
+
+
+void MainWindow::on_pushButton_stopRelayTest_clicked()
+{
+    QMessageBox::StandardButton reply =
+            QMessageBox::question(
+                this,
+                "Abort Relay Test",
+                "Are you sure you want to abort the Relay test?",
+                QMessageBox::Yes |
+                QMessageBox::No);
+
+    if (reply == QMessageBox::Yes)
+    {
+        test->abortCommand();
+    }
+}
+
+void MainWindow::on_pushButton_saveRelayTest_clicked()
+{
+    if (test->isRelayTestRunning())
+    {
+        QMessageBox::warning(
+            this,
+            "Relay Test",
+            "Please wait, Relay test is running.");
+        return;
+    }
+
+    // Add Save functionality here
+    failedRelayCount = 0;
+    generateRelayTestPDF();
+
+}
+void MainWindow::generateRelayTestPDF()
+{
+//    if (!m_relayTestModel)
+//        return;
+
+ //    Create PDF folder on Desktop
+    QString desktopPath =
+            QStandardPaths::writableLocation(
+                QStandardPaths::DesktopLocation);
+
+    QString folderPath = desktopPath + "/RelayTest_Pdf";
+
+    QDir dir;
+
+    if (!dir.exists(folderPath))
+        dir.mkpath(folderPath);
+
+    // Generate filename with timestamp
+    QString timestamp =
+            QDateTime::currentDateTime()
+            .toString("yyyyMMdd_HHmmss");
+
+    QString fileName = folderPath +
+            "/RelayTest_" + timestamp + ".pdf";
+
+    if (fileName.isEmpty())
+        return;
+
+    if (!fileName.endsWith(".pdf", Qt::CaseInsensitive))
+        fileName += ".pdf";
+
+    // Printer setup
+    QPrinter printer(QPrinter::HighResolution);
+
+    printer.setOutputFormat(QPrinter::PdfFormat);
+    printer.setOutputFileName(fileName);
+    printer.setPageSize(QPageSize(QPageSize::A4));
+    printer.setOrientation(QPrinter::Portrait);
+
+    printer.setPageMargins(
+                15, 15, 15, 20,
+                QPrinter::Millimeter);
+
+    printer.setResolution(96);
+
+    // Start painting
+    QPainter painter;
+
+    if (!painter.begin(&printer))
+    {
+        QMessageBox::warning(
+                    this,
+                    "PDF",
+                    "Unable to create PDF.");
+        return;
+    }
+
+    // Calculate page dimensions
+    QRect deviceRect =
+            printer.pageLayout().paintRectPixels(
+                printer.resolution());
+
+    const qreal pageWidth = deviceRect.width();
+    const qreal pageHeight = deviceRect.height();
+
+    const qreal bottom = pageHeight - 25;
+
+    // Count failed pins from Result column (column 8)
+     failedRelayCount = 0;
+    for (int row = 0;
+         row < m_relayTestModel->rowCount();
+         ++row)
+    {
+        QStandardItem *item =
+                m_relayTestModel->item(row, 12);
+
+        if (item &&
+            item->text().compare(
+                "PASS", Qt::CaseInsensitive) != 0)
+        {
+            ++failedRelayCount;
+        }
+    }
+
+    int pageNumber = 1;
+
+    // 1. Draw report header
+    qreal y = drawTwoWireTestHeader(
+                painter,
+                pageWidth,
+                failedRelayCount);
+
+    // 2. Draw table
+    drawRelayTestTable(
+                painter,
+                printer,
+                pageWidth,
+                pageHeight,
+                bottom,
+                y,
+                pageNumber);
+
+    // 3. Draw notes, signatures and final page number
+    drawTwoWireTestFooter(
+                painter,
+                printer,
+                pageWidth,
+                pageHeight,
+                bottom,
+                y,
+                pageNumber);
+
+    // Finish PDF generation
+    painter.end();
+
+    QMessageBox::information(
+        this,
+        "Calibration Save",
+        QString(
+            "Calibration data saved successfully.\n\n"
+            "Total rows saved: %1")
+        .arg(m_calibrationModel->rowCount()));
+    qDebug()<<"database saving for calibration complted";
+
+
+    //pdf saving
+    failedPinsCalibrate=0;
+    generateCalibratePDF();
+
+}
+void MainWindow::generateCalibratePDF()
+{
+    if(!m_calibrationModel)
+    {
+        return;
+    }
+qDebug()<<"pdf func for calibration";
+ //    Create PDF folder on Desktop
+    QString desktopPath =
+            QStandardPaths::writableLocation(
+                QStandardPaths::DesktopLocation);
+
+    QString folderPath = desktopPath + "/Calibration_Pdf";
+
+    QDir dir;
+
+    if (!dir.exists(folderPath))
+        dir.mkpath(folderPath);
+
+    // Generate filename with timestamp
+    QString timestamp =
+            QDateTime::currentDateTime()
+            .toString("yyyyMMdd_HHmmss");
+
+    QString fileName = folderPath +
+            "/calibration_" + timestamp + ".pdf";
+
+    if (fileName.isEmpty())
+        return;
+
+    if (!fileName.endsWith(".pdf", Qt::CaseInsensitive))
+        fileName += ".pdf";
+
+    // Printer setup
+    QPrinter printer(QPrinter::HighResolution);
+
+    printer.setOutputFormat(QPrinter::PdfFormat);
+    printer.setOutputFileName(fileName);
+    printer.setPageSize(QPageSize(QPageSize::A4));
+    printer.setOrientation(QPrinter::Portrait);
+
+    printer.setPageMargins(
+                15, 15, 15, 20,
+                QPrinter::Millimeter);
+
+    printer.setResolution(96);
+
+    // Start painting
+    QPainter painter;
+
+    if (!painter.begin(&printer))
+    {
+        QMessageBox::warning(
+                    this,
+                    "PDF",
+                    "Unable to create PDF.");
+        return;
+    }
+
+    // Calculate page dimensions
+    QRect deviceRect =
+            printer.pageLayout().paintRectPixels(
+                printer.resolution());
+
+    const qreal pageWidth = deviceRect.width();
+    const qreal pageHeight = deviceRect.height();
+
+    const qreal bottom = pageHeight - 25;
+
+
+    int pageNumber = 1;
+
+    // 1. Draw report header
+    qreal y = drawTwoWireTestHeader(
+                painter,
+                pageWidth,
+                failedPinsCalibrate);
+    qDebug()<<"header part completed";
+
+    // 2. Draw table
+    drawCalibrateTable(
+                painter,
+                printer,
+                pageWidth,
+                pageHeight,
+                bottom,
+                y,
+                pageNumber);
+    qDebug()<<"table part completed";
+
+    // 3. Draw notes, signatures and final page number
+    drawTwoWireTestFooter(
+                painter,
+                printer,
+                pageWidth,
+                pageHeight,
+                bottom,
+                y,
+                pageNumber);
+
+    // Finish PDF generation
+    painter.end();
+
+    QMessageBox::information(
+                this,
+                "PDF",
+                "PDF generated successfully.");
+}
+void MainWindow::drawCalibrateTable(
+        QPainter &painter,
+        QPrinter &printer,
+        qreal pageWidth,
+        qreal pageHeight,
+        qreal bottom,
+        qreal &y,
+        int &pageNumber)
+{
+    const qreal left = 0;
+
+    // Table column widths
+    const qreal proportions[] = {
+        0.335,0.333,0.333
+    };
+
+    qreal colWidths[3];
+
+    for (int c = 0; c < 3; ++c)
+        colWidths[c] = pageWidth * proportions[c];
+
+    // Table headers
+    const QStringList headers = {
+        "Connector", "Pin","Calibration Value(Ω)"
+    };
+
+    QImage watermark(":/new/prefix1/images/charka.png");
+    auto drawWatermark = [&]()
+    {
+        if (watermark.isNull())
+            return;
+
+        qreal watermarkWidth = pageWidth * 0.75;
+        qreal watermarkHeight =
+                watermarkWidth * watermark.height()
+                / watermark.width();
+
+        QRectF watermarkRect(
+            (pageWidth - watermarkWidth) / 2,
+            (pageHeight - watermarkHeight) / 2,
+            watermarkWidth,
+            watermarkHeight
+        );
+
+        painter.save();
+        painter.setOpacity(0.50);
+        painter.drawImage(watermarkRect, watermark);
+        painter.restore();
+    };
+
+    // Fonts
+    QFont normalFont("Times New Roman", 11);
+
+    QFont boldFont("Times New Roman", 11);
+    boldFont.setBold(true);
+
+    // Draw a table cell
+    auto drawCell = [&](
+            const QRectF &rect,
+            const QString &value,
+            const QFont &font,
+            const QColor &background)
+    {
+        if (background != Qt::transparent)
+            painter.fillRect(rect, background);
+
+        painter.setPen(Qt::black);
+        painter.drawRect(rect);
+
+        painter.setFont(font);
+
+        QRectF textRect = rect.adjusted(3, 2, -3, -2);
+
+        painter.drawText(
+                    textRect,
+                    Qt::AlignCenter |
+                    Qt::TextWordWrap |
+                    Qt::TextWrapAnywhere,
+                    value);
+    };
+
+    // Draw the table header
+    auto drawTableHeader = [&](qreal &currentY)
+    {
+        const qreal headerHeight = 45;
+        qreal x = left;
+
+        for (int c = 0; c < 3; ++c)
+        {
+            QRectF cell(
+                        x,
+                        currentY,
+                        colWidths[c],
+                        headerHeight);
+
+            drawCell(
+                        cell,
+                        headers[c],
+                        boldFont,
+                        QColor(204, 204, 204));
+
+            x += colWidths[c];
+        }
+
+        currentY += headerHeight;
+    };
+
+    int totalRows = m_calibrationModel->rowCount();
+    int currentRow = 0;
+
+    // Draw table header on the first page
+    drawWatermark();
+    drawTableHeader(y);
+
+    // Draw the table rows
+    while (currentRow < totalRows)
+    {
+        // Calculate dynamic row height
+        qreal rowHeight =30;
+
+        for (int c = 0; c < 3; ++c)
+        {
+            QString value;
+
+            QStandardItem *item =
+                    m_calibrationModel->item(currentRow, c);
+
+            if (item)
+                value = item->text();
+
+            QFont cellFont = normalFont;
+
+//            if (c == 7 &&
+//                (value.compare(
+//                     "Pass", Qt::CaseInsensitive) == 0 ||
+//                 value.compare(
+//                     "Fail", Qt::CaseInsensitive) == 0))
+//            {
+//                cellFont = boldFont;
+//            }
+
+            QFontMetricsF metrics(cellFont);
+
+            QRectF textRect = metrics.boundingRect(
+                        QRectF(
+                            0, 0,
+                            qMax(1, static_cast<int>(
+                                 colWidths[c] - 8)),
+                            10000),
+                        Qt::AlignCenter |
+                        Qt::TextWordWrap |
+                        Qt::TextWrapAnywhere,
+                        value);
+
+            rowHeight = qMax<qreal>(
+                        rowHeight,
+                        textRect.height() +20);
+        }
+
+        // Start a new page if the row will not fit
+        if (y + rowHeight > bottom)
+        {
+            // Current page footer
+            painter.setFont(boldFont);
+            painter.setPen(Qt::black);
+
+            painter.drawText(
+                        QRectF(
+                            0,
+                            pageHeight - 25,
+                            pageWidth,
+                            15),
+                        Qt::AlignCenter,
+                        "Page " + QString::number(pageNumber));
+
+            printer.newPage();
+
+            ++pageNumber;
+
+            y = 0;
+
+            // Repeat table header on the new page
+            drawWatermark();
+            drawTableHeader(y);
+        }
+
+        // Draw current row
+        qreal x = left;
+
+        for (int c = 0; c < 3; ++c)
+        {
+            QString value;
+
+            QStandardItem *item =
+                    m_calibrationModel->item(currentRow, c);
+
+            if (item)
+                value = item->text();
+
+            QColor background = Qt::transparent;
+            QFont cellFont = normalFont;
+
+            // Result column: Pass / Fail
+            if (c == 7)
+            {
+//                if (value.compare(
+//                            "Pass", Qt::CaseInsensitive) == 0)
+//                {
+//                    background = QColor(144, 238, 144);
+//                    cellFont = boldFont;
+//                }
+                if (value.compare(
+                                 "Fail", Qt::CaseInsensitive) == 0)
+                {
+                    background = QColor(255, 127, 127);
+                    cellFont = boldFont;
+                }
+            }
+
+            QRectF cell(
+                        x,
+                        y,
+                        colWidths[c],
+                        rowHeight);
+
+            drawCell(
+                        cell,
+                        value,
+                        cellFont,
+                        background);
+
+            x += colWidths[c];
+        }
+
+        y += rowHeight;
+        ++currentRow;
+    }
+    y+=20;
+}
+
+
+void MainWindow::on_pushButton_calibrationView_clicked()
+{
+    if (test->isCalibrationRunning())
+       {
+           QMessageBox::warning(
+               this,
+               "Calibration Test Running",
+               "Please wait until the calibration test is completed.");
+           return;
+       }
+        0.055, 0.085,0.0,0.0, 0.185, 0.102, 0.0,0.0,0.075,
+        0.092, 0.120, 0.108, 0.098, 0.080
+    };
+
+    qreal colWidths[14];
+
+    for (int c = 0; c < 14; ++c)
+        colWidths[c] = pageWidth * proportions[c];
+    // Table headers
+    const QStringList headers = {
+        "S.No", "Cable", " "," ","Relay Conn", "Relay\nPin"," ","",
+        "Excitation\nVolt", "Exp\nValue",
+        "Condition", "Measured", "Results","Remarks"
+    };
+    qDebug()<<"headers set successfully";
+    // Fonts
+    QFont normalFont("Times New Roman", 11);
+
+    QFont boldFont("Times New Roman", 11);
+    boldFont.setBold(true);
+
+    // Draw a table cell
+    auto drawCell = [&](
+            const QRectF &rect,
+            const QString &value,
+            const QFont &font,
+            const QColor &background)
+    {
+        painter.fillRect(rect, background);
+
+        painter.setPen(Qt::black);
+        painter.drawRect(rect);
+
+        painter.setFont(font);
+
+        QRectF textRect = rect.adjusted(3, 2, -3, -2);
+
+        painter.drawText(
+                    textRect,
+                    Qt::AlignCenter |
+                    Qt::TextWordWrap |
+                    Qt::TextWrapAnywhere,
+                    value);
+    };
+
+    // Draw the table header
+    auto drawTableHeader = [&](qreal &currentY)
+    {
+        const qreal headerHeight = 50;
+        qreal x = left;
+
+        for (int c = 0; c < 14; ++c)
+        {
+            if(c==2 ||c==3||c==6||c==7)
+            {
+                continue;
+            }
+            QRectF cell(
+                        x,
+                        currentY,
+                        colWidths[c],
+                        headerHeight);
+
+            drawCell(
+                        cell,
+                        headers[c],
+                        boldFont,
+                        QColor(204, 204, 204));
+
+            x += colWidths[c];
+        }
+
+        currentY += headerHeight;
+    };
+
+
+    int totalRows = m_relayTestModel->rowCount();
+
+    int currentRow = 0;
+
+    // Draw table header on the first page
+    drawTableHeader(y);
+    qDebug()<<"header part completed";
+    qDebug()<<"totalRows"<<totalRows;
+
+    // Draw the table rows
+    while (currentRow < totalRows)
+    {
+        // Calculate dynamic row height
+
+        qreal rowHeight = 30;
+
+        for (int c = 0; c < 14; ++c)
+        {
+            QString value;
+            if(c==2 ||c==3||c==6||c==7)
+            {
+                qDebug()<<"here problem occurs";
+                continue;
+            }
+
+
+            QStandardItem *item =
+                    m_relayTestModel->item(currentRow, c);
+
+            if (item)
+                value = item->text();
+
+
+            QFont cellFont = normalFont;
+
+            if (c == 12&&
+                (value.compare(
+                     "Pass", Qt::CaseInsensitive) == 0 ||
+                 value.compare(
+                     "Pass", Qt::CaseInsensitive) != 0))
+            {
+                cellFont = boldFont;
+            }
+
+            QFontMetricsF metrics(cellFont);
+
+            QRectF textRect = metrics.boundingRect(
+                        QRectF(
+                            0, 0,
+                            qMax(1, static_cast<int>(
+                                 colWidths[c] - 8)),
+                            10000),
+                        Qt::AlignCenter |
+                        Qt::TextWordWrap |
+                        Qt::TextWrapAnywhere,
+                        value);
+
+            rowHeight = qMax<qreal>(
+                        rowHeight,
+                        textRect.height() + 20);
+        }
+
+        // Start a new page if the row will not fit
+        if (y + rowHeight > bottom)
+        {
+            // Current page footer
+            painter.setFont(boldFont);
+            painter.setPen(Qt::black);
+
+            painter.drawText(
+                        QRectF(
+                            0,
+                            pageHeight - 25,
+                            pageWidth,
+                            15),
+                        Qt::AlignCenter,
+                        "Page " + QString::number(pageNumber));
+
+            printer.newPage();
+
+            ++pageNumber;
+
+            y = 0;
+
+            // Repeat table header on the new page
+            drawTableHeader(y);
+        }
+
+        // Draw current row
+        qreal x = left;
+
+        for (int c = 0; c < 14; ++c)
+        {
+            QString value;
+
+            QStandardItem *item =
+                    m_relayTestModel->item(currentRow, c);
+
+            if (item)
+                value = item->text();
+
+
+            QColor background = Qt::white;
+            QFont cellFont = normalFont;
+
+            // Result column: Pass / Fail
+//            if (c == 12)
+//            {
+//                if (value.compare(
+//                            "Pass", Qt::CaseInsensitive) == 0)
+//                {
+//                    background = QColor(144, 238, 144);
+//                    cellFont = boldFont;
+//                }
+//                else if (value.compare(
+//                                 "Pass", Qt::CaseInsensitive) != 0)
+//                {
+//                    background = QColor(255, 127, 127);
+//                    cellFont = boldFont;
+//                }
+//            }
+
+            QRectF cell(
+                        x,
+                        y,
+                        colWidths[c],
+                        rowHeight);
+
+            drawCell(
+                        cell,
+                        value,
+                        cellFont,
+                        background);
+
+            x += colWidths[c];
+        }
+
+        y += rowHeight;
+        ++currentRow;
+    }
+    y+=20;
+}
+
+void MainWindow::on_pushButton_openRelayTest_clicked()
+{
+    if (test->isRelayTestRunning())
+    {
+        QMessageBox::warning(
+            this,
+            "Relay Test",
+            "Please wait, Relay test is running.");
+        return;
+    }
+
+
+    // Add Open Files functionality here
+
+    QString desktopPath =
+            QStandardPaths::writableLocation(
+                QStandardPaths::DesktopLocation);
+
+    QString folderPath = desktopPath + "/RelayTest_Pdf";
+
+    QDir dir;
+
+    if (!dir.exists(folderPath))
+        dir.mkpath(folderPath);
+    QDesktopServices::openUrl(
+                QUrl::fromLocalFile(folderPath));
+}
+
+void MainWindow::on_pushButton_backFromRelayTest_clicked()
+{
+    if (test->isRelayTestRunning())
+    {
+        QMessageBox::warning(
+            this,
+            "Relay Test",
+            "Please wait, Relay test is running.");
+        return;
+    }
+
+    ui->stackedWidget->setCurrentWidget(ui->page_test);
+}
+
+void MainWindow::on_pushButton_openTwoWireFiles_clicked()
+{
+    QString desktopPath =
+               QStandardPaths::writableLocation(
+                   QStandardPaths::DesktopLocation);
+
+       QString folderPath = desktopPath + "/TwoWire_Pdf";
+
+       // Create the folder if it doesn't exist
+       QDir().mkpath(folderPath);
+
+       // Open the folder in File Explorer
+       QDesktopServices::openUrl(
+                   QUrl::fromLocalFile(folderPath));
+}
+
+
+void MainWindow::on_pushButton_backFromGetDetails_clicked()
+{
+     ui->stackedWidget->setCurrentWidget(ui->page_dataEntry);
+}
+
+void MainWindow::on_pushButton_addDiodeRow_clicked()
+{
+    ui->tableView_diode->setEditTriggers(
+        QAbstractItemView::DoubleClicked |
+        QAbstractItemView::SelectedClicked |
+        QAbstractItemView::EditKeyPressed
+    );
+
+    // Always insert the new row at the end
+    int row = diodeModel->rowCount();
+
+    diodeModel->insertRow(row);
+
+    // Select and scroll to the newly inserted row
+    ui->tableView_diode->selectRow(row);
+
+    ui->tableView_diode->setCurrentIndex(
+        diodeModel->index(row, 0)
+    );
+
+    ui->tableView_diode->scrollTo(
+        diodeModel->index(row, 0),
+        QAbstractItemView::PositionAtCenter
+    );
+}
+
+void MainWindow::on_pushButton_delDiodeRow_clicked()
+{
+    QModelIndex index =
+            ui->tableView_diode->currentIndex();
+
+    if(!index.isValid())
+    {
+        QMessageBox::information(this, "Selection","Select row to delete");
+        return;
+    }
+
+    int row = index.row();
+
+    diodeModel->removeRow(row);
+    if(diodeModel->submitAll())
+    {
+        QMessageBox::information(this,"Success", "Row deleted successfully");
+    }
+    else
+    {
+        QMessageBox::warning(this,"Error",diodeModel->lastError().text());
+    }
+}
+
+void MainWindow::on_pushButton_addRelayRow_clicked()
+{
+    ui->tableView_Relay->setEditTriggers(
+        QAbstractItemView::DoubleClicked |
+        QAbstractItemView::SelectedClicked |
+        QAbstractItemView::EditKeyPressed
+    );
+
+    // Always insert the new row at the end
+    int row = relayModel->rowCount();
+
+    relayModel->insertRow(row);
+
+    // Select and scroll to the newly inserted row
+    ui->tableView_Relay->selectRow(row);
+
+    ui->tableView_Relay->setCurrentIndex(
+        relayModel->index(row, 0)
+    );
+
+    ui->tableView_Relay->scrollTo(
+        relayModel->index(row, 0),
+        QAbstractItemView::PositionAtCenter
+    );
+}
+
+void MainWindow::on_pushButton_delRelayRow_clicked()
+{
+    QModelIndex index =
+            ui->tableView_Relay->currentIndex();
+
+    if(!index.isValid())
+    {
+        QMessageBox::information(this, "Selection","Select row to delete");
+        return;
+    }
+
+    int row = index.row();
+
+    relayModel->removeRow(row);
+    if(relayModel->submitAll())
+    {
+        QMessageBox::information(this,"Success", "Row deleted successfully");
+    }
+    else
+    {
+        QMessageBox::warning(this,"Error",relayModel->lastError().text());
+    }
+}
+
+void MainWindow::on_pushButton_editTableViewDiode_clicked()
+{
+    ui->tableView_diode->setEditingEnabled(true);
+
+    QMessageBox::information(this,"Editable","Now you can edit table");
+}
+
+void MainWindow::on_pushButton_saveChangesDiode_clicked()
+{
+    // Step 1: Refresh Patch references from the visible Patch table.
+    if (!refreshPatchValidationLists())
+        return;
+
+    // Step 2: Extract current Diode model rows.
+    QVector<QString> cableTemp;
+    QVector<QString> anodeConTemp, anodePinTemp;
+    QVector<QString> cathodeConTemp, cathodePinTemp;
+    QVector<QString> expVoltageTemp;
+
+    for (int row = 0; row < diodeModel->rowCount(); ++row)
+    {
+        cableTemp.append(
+            diodeModel->index(row, 1).data().toString().trimmed());
+
+        anodeConTemp.append(
+            diodeModel->index(row, 2).data().toString().trimmed());
+
+        anodePinTemp.append(
+            diodeModel->index(row, 3).data().toString().trimmed());
+
+        cathodeConTemp.append(
+            diodeModel->index(row, 4).data().toString().trimmed());
+
+        cathodePinTemp.append(
+            diodeModel->index(row, 5).data().toString().trimmed());
+
+        expVoltageTemp.append(
+            diodeModel->index(row, 6).data().toString().trimmed());
+    }
+
+    // Step 3: Run existing validation rules.
+    if (!validateDiodeData(
+            cableTemp,
+            anodeConTemp, anodePinTemp,
+            cathodeConTemp, cathodePinTemp,
+            expVoltageTemp))
+    {
+        QMessageBox::warning(
+               this,
+               "Validation Failed",
+               "Diode data validation failed.\n\n"
+               "Please check the Error Log page for details.");
+
+        // Navigate to the Error Log page after the popup closes.
+           ui->stackedWidget->setCurrentWidget(ui->page_dataEntry);
+
+        return;
+    }
+
+    // Step 4: Save only after validation succeeds.
+    if (diodeModel->submitAll())
+    {
+        QMessageBox::information(
+            this, "Success", "Changes saved successfully");
+
+       ui->tableView_diode->setEditingEnabled(false);
+    }
+    else
+    {
+        QMessageBox::warning(
+            this, "Error", diodeModel->lastError().text());
+    }
+}
+
+void MainWindow::on_pushButton_revertChangesDiode_clicked()
+{
+    diodeModel->revertAll();
+    ui->tableView_diode->setEditingEnabled(false);
+}
+
+void MainWindow::on_pushButton_editTableViewRelay_clicked()
+{
+    ui->tableView_Relay->setEditingEnabled(true);
+
+    QMessageBox::information(this,"Editable","Now you can edit table");
+}
+
+void MainWindow::on_pushButton_saveChangesRelay_clicked()
+{
+    // Step 1: Refresh Patch references from the visible Patch table.
+    if (!refreshPatchValidationLists())
+        return;
+
+    // Step 2: Extract current Relay model rows.
+    QVector<QString> cableTemp;
+    QVector<QString> sourceConTemp, sourcePinTemp;
+    QVector<QString> relaySideConTemp, relaySideRSPinsTemp;
+    QVector<QString> destConTemp, destPinTemp;
+    QVector<QString> excitationVoltageTemp, expTemp;
+
+    for (int row = 0; row < relayModel->rowCount(); ++row)
+    {
+        cableTemp.append(
+            relayModel->index(row, 1).data().toString().trimmed());
+
+        sourceConTemp.append(
+            relayModel->index(row, 2).data().toString().trimmed());
+
+        sourcePinTemp.append(
+            relayModel->index(row, 3).data().toString().trimmed());
+
+        relaySideConTemp.append(
+            relayModel->index(row, 4).data().toString().trimmed());
+
+        relaySideRSPinsTemp.append(
+            relayModel->index(row, 5).data().toString().trimmed());
+
+        destConTemp.append(
+            relayModel->index(row, 6).data().toString().trimmed());
+
+        destPinTemp.append(
+            relayModel->index(row, 7).data().toString().trimmed());
+
+        excitationVoltageTemp.append(
+            relayModel->index(row, 8).data().toString().trimmed());
+
+        expTemp.append(
+            relayModel->index(row, 9).data().toString().trimmed());
+    }
+
+    // Step 3: Run existing validation rules.
+    if (!validateRelayData(
+            cableTemp,
+            sourceConTemp,
+            sourcePinTemp,
+            relaySideConTemp,
+            relaySideRSPinsTemp,
+            destConTemp,
+            destPinTemp,
+            excitationVoltageTemp,
+            expTemp))
+    {
+        QMessageBox::warning(
+               this,
+               "Validation Failed",
+               "Relay data validation failed.\n\n"
+               "Please check the Error Log page for details.");
+
+        // Navigate to the Error Log page after the popup closes.
+           ui->stackedWidget->setCurrentWidget(ui->page_dataEntry);
+
+        return;
+    }
+
+    // Step 4: Save only after validation succeeds.
+    if (relayModel->submitAll())
+    {
+        QMessageBox::information(
+            this, "Success", "Changes saved successfully");
+
+        ui->tableView_Relay->setEditingEnabled(false);
+
+    }
+    else
+    {
+        QMessageBox::warning(
+            this, "Error", relayModel->lastError().text());
+    }
+}
+
+void MainWindow::on_pushButton_revertChangesRelay_clicked()
+{
+    relayModel->revertAll();
+    ui->tableView_Relay->setEditingEnabled(false);
+}
+
+void MainWindow::on_pushButton_clearErrorLog_clicked()
+{
+    ui->textEdit_ErrorLog->clear();
+}
+
+void MainWindow::on_pushButton_addPatchRow_clicked()
+{
+    QStandardItemModel *displayModel =
+        qobject_cast<QStandardItemModel *>(
+            ui->tableView_patch->model());
+
+    if (!displayModel)
+        return;
+
+    const int row = displayModel->rowCount();
+
+    QList<QStandardItem *> items;
+
+    for (int col = 0; col < 6; ++col)
+        items.append(new QStandardItem(""));
+
+    // Default cable name from an existing row, if available.
+    QString cable;
+
+    if (row > 0)
+    {
+        cable = displayModel->index(0, 1).data().toString();
+    }
+    else
+    {
+        cable = ui->label_fileName->text().trimmed();
+    }
+
+    items[1]->setText(cable);
+
+    displayModel->appendRow(items);
+
+    ui->tableView_patch->setCurrentIndex(
+        displayModel->index(row, 1));
+
+    ui->tableView_patch->setEditTriggers(
+        QAbstractItemView::DoubleClicked |
+        QAbstractItemView::SelectedClicked |
+        QAbstractItemView::EditKeyPressed);
+
+    ui->tableView_patch->edit(
+        displayModel->index(row, 1));
+}
+
+void MainWindow::on_pushButton_delPatchRow_clicked()
+{
+    QStandardItemModel *displayModel =
+        qobject_cast<QStandardItemModel *>(
+            ui->tableView_patch->model());
+
+    if (!displayModel)
+        return;
+
+    const QModelIndex index =
+        ui->tableView_patch->currentIndex();
+
+    if (!index.isValid())
+    {
+        QMessageBox::information(
+            this, "Selection",
+            "Select a Patch row to delete.");
+        return;
+    }
+
+    const int row = index.row();
+
+    // Get the database ID from the visible model.
+    const QString id =
+        displayModel->index(row, 0).data().toString().trimmed();
+
+    if (id.isEmpty())
+    {
+        QMessageBox::warning(
+            this, "Error",
+            "Cannot delete this row because it has no database ID.");
+        return;
+    }
+
+    // Find the corresponding database-model row using its ID.
+    int dbRow = -1;
+
+    for (int r = 0; r < patchModel->rowCount(); ++r)
+    {
+        if (patchModel->index(r, 0).data().toString() == id)
+        {
+            dbRow = r;
+            break;
+        }
+    }
+
+    if (dbRow < 0)
+    {
+        QMessageBox::warning(
+            this, "Error",
+            "The selected Patch record was not found in the database model.");
+        return;
+    }
+
+    // Mark the corresponding database row for deletion.
+    if (!patchModel->removeRow(dbRow))
+    {
+        QMessageBox::warning(
+            this, "Error",
+            "Unable to remove the selected Patch record.");
+        return;
+    }
+
+    // Commit the deletion immediately.
+    if (patchModel->submitAll())
+    {
+        loadPatchTable(patchModel->tableName());
+
+        QMessageBox::information(
+            this, "Success",
+            "Patch row deleted successfully.");
+    }
+    else
+    {
+        const QString error = patchModel->lastError().text();
+
+        patchModel->revertAll();
+        loadPatchTable(patchModel->tableName());
+
+        QMessageBox::warning(this, "Error", error);
+    }
+}
+
+
+void MainWindow::on_pushButton_exportPatch_clicked()
+{
+    exportTableToExcel(ui->tableView_patch, "patchfile");
+}
+
+void MainWindow::on_pushButton_exportHarness_clicked()
+{
+    exportTableToExcel(ui->tableView_harness, "harnessfile");
+}
+
+void MainWindow::on_pushButton_exportDiode_clicked()
 {
     if (test->isInsuIsoTestRunning())
        {
@@ -11088,6 +15026,100 @@ void MainWindow::on_pushButton_saveRelayTest_clicked()
     failedRelayCount = 0;
     generateRelayTestPDF();
 
+    exportTableToExcel(ui->tableView_diode, "diodefile");
+}
+
+void MainWindow::on_pushButton_exportRelay_clicked()
+{
+    exportTableToExcel(ui->tableView_Relay, "relayfile");
+}
+
+
+
+void MainWindow::on_pushButton_importPatch_clicked()
+{
+    importTableFromExcel(
+        ui->tableView_patch,
+        "_patch",
+        QStringList() << "cable"
+                      << "userCon"
+                      << "userPin"
+                      << "patchCon"
+                      << "patchPin",
+        true);
+}
+
+void MainWindow::on_pushButton_importHarness_clicked()
+{
+    importTableFromExcel(
+        ui->tableView_harness,
+        "_harness",
+        QStringList() << "cable"
+                      << "sourceCon"
+                      << "sourcePin"
+                      << "destCon"
+                      << "destPin"
+                      << "exp");
+}
+
+void MainWindow::on_pushButton_importDiode_clicked()
+{
+    importTableFromExcel(
+        ui->tableView_diode,
+        "_diode",
+        QStringList() << "cable"
+                      << "anodeCon"
+                      << "anodePin"
+                      << "cathodeCon"
+                      << "cathodePin"
+                      << "expVoltage");
+}
+
+void MainWindow::on_pushButton_impotRelay_clicked()
+{
+    importTableFromExcel(
+        ui->tableView_Relay,
+        "_relay",
+        QStringList() << "cable"
+                      << "sourceCon"
+                      << "sourcePin"
+                      << "relaySideCon"
+                      << "relaySideRSPins"
+                      << "destCon"
+                      << "destPin"
+                      << "excitationVoltage"
+                      << "exp");
+}
+
+
+void MainWindow::on_checkBox_adjustRelayColumns_clicked(bool checked)
+{
+    if (checked)
+    {
+        // Allow manual column resizing
+        ui->tableView_relay->horizontalHeader()
+            ->setSectionResizeMode(QHeaderView::Interactive);
+    }
+    else
+    {
+        // Stretch columns to fill the available width
+        ui->tableView_relay->horizontalHeader()
+            ->setSectionResizeMode(QHeaderView::Stretch);
+    }
+}
+
+void MainWindow::on_checkBox_adjustDiodeColumns_clicked(bool checked)
+{
+    if (checked)
+    {
+        ui->tableView_diodeTest->horizontalHeader()
+            ->setSectionResizeMode(QHeaderView::Interactive);
+    }
+    else
+    {
+        ui->tableView_diodeTest->horizontalHeader()
+            ->setSectionResizeMode(QHeaderView::Stretch);
+    }
 }
 void MainWindow::generateRelayTestPDF()
 {
@@ -11468,19 +15500,33 @@ void MainWindow::drawRelayTestTable(
 
         y += rowHeight;
         ++currentRow;
+void MainWindow::on_checkBox_adjustInsuIsoColumns_clicked(bool checked)
+{
+    if (checked)
+    {
+        ui->tableView_InsuIso->horizontalHeader()
+            ->setSectionResizeMode(QHeaderView::Interactive);
+    }
+    else
+    {
+        ui->tableView_InsuIso->horizontalHeader()
+            ->setSectionResizeMode(QHeaderView::Stretch);
     }
     y+=20;
 }
 
 void MainWindow::on_pushButton_openRelayTest_clicked()
+void MainWindow::on_checkBox_adjustTwoWireColumns_clicked(bool checked)
 {
-    if (test->isRelayTestRunning())
+    if (checked)
     {
-        QMessageBox::warning(
-            this,
-            "Relay Test",
-            "Please wait, Relay test is running.");
-        return;
+        ui->tableView_twoWireTest->horizontalHeader()
+            ->setSectionResizeMode(QHeaderView::Interactive);
+    }
+    else
+    {
+        ui->tableView_twoWireTest->horizontalHeader()
+            ->setSectionResizeMode(QHeaderView::Stretch);
     }
 
 
@@ -11501,15 +15547,12 @@ void MainWindow::on_pushButton_openRelayTest_clicked()
 }
 
 void MainWindow::on_pushButton_backFromRelayTest_clicked()
+}
+
+void MainWindow::on_checkBox_editRemarksTwoWire_clicked(bool checked)
 {
-    if (test->isRelayTestRunning())
-    {
-        QMessageBox::warning(
-            this,
-            "Relay Test",
-            "Please wait, Relay test is running.");
-        return;
-    }
+    ui->tableView_twoWireTest->setRemarksEditingEnabled(checked);
+}
 
     ui->stackedWidget->setCurrentWidget(ui->page_test);
 }
@@ -11882,4 +15925,17 @@ void MainWindow::on_comboBox_files_currentTextChanged(const QString &arg1)
         writeToNotes("Table exists, but contains no records: "
                      + tableName);
     }
+void MainWindow::on_checkBox_editRemarksIsoInsu_clicked(bool checked)
+{
+    ui->tableView_InsuIso->setRemarksEditingEnabled(checked);
+}
+
+void MainWindow::on_checkBox_editRemarksDiode_clicked(bool checked)
+{
+    ui->tableView_diodeTest->setRemarksEditingEnabled(checked);
+}
+
+void MainWindow::on_checkBox_editRemarksRelay_clicked(bool checked)
+{
+    ui->tableView_relay->setRemarksEditingEnabled(checked);
 }

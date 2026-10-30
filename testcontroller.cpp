@@ -205,6 +205,119 @@ bool TestController::mapLogicalToHardware(const QVariantList &patchData,
     return true;
 }
 
+QString TestController::detectDevicePort()
+{
+    qDebug() << "\n========== DEVICE AUTO DETECTION START ==========";
+
+    // Return existing connection if already connected.
+    if (serial->isOpen())
+    {
+        qDebug() << "[INFO] Already connected:" << serial->portName();
+        return serial->portName();
+    }
+
+    const QByteArray packet =
+        QByteArray::fromHex("53 4B 31 01 28");
+
+    const QList<QByteArray> expectedResponses = {
+        QByteArray::fromHex("51 52 FF 01 01"),
+        QByteArray::fromHex("51 52 FF FF 01")
+    };
+
+    const int responseTimeoutMs = 500;
+
+    const QList<QSerialPortInfo> ports =
+        QSerialPortInfo::availablePorts();
+
+    qDebug() << "[INFO] Available ports:" << ports.size();
+
+    foreach (const QSerialPortInfo &info, ports)
+    {
+        QSerialPort tempSerial;
+        tempSerial.setPort(info);
+
+        tempSerial.setBaudRate(QSerialPort::Baud115200);
+        tempSerial.setDataBits(QSerialPort::Data8);
+        tempSerial.setParity(QSerialPort::NoParity);
+        tempSerial.setStopBits(QSerialPort::OneStop);
+        tempSerial.setFlowControl(QSerialPort::NoFlowControl);
+
+        qDebug() << "[CHECK] Port:" << info.portName();
+
+        if (!tempSerial.open(QIODevice::ReadWrite))
+        {
+            qDebug() << "[WARN] Cannot open"
+                     << info.portName() << ":"
+                     << tempSerial.errorString();
+            continue;
+        }
+
+        // Clear stale data before sending the request.
+        tempSerial.clear(QSerialPort::AllDirections);
+
+        // Transmit detection command.
+        if (tempSerial.write(packet) != packet.size() ||
+            !tempSerial.waitForBytesWritten(500))
+        {
+            qDebug() << "[WARN] Command transmission failed on"
+                     << info.portName();
+
+            tempSerial.close();
+            continue;
+        }
+
+        // Receive response.
+        QByteArray response;
+        QElapsedTimer timer;
+        timer.start();
+
+        while (timer.elapsed() < responseTimeoutMs &&
+               response.size() < expectedResponses.first().size())
+        {
+            if (tempSerial.bytesAvailable() == 0)
+            {
+                if (!tempSerial.waitForReadyRead(50))
+                    continue;
+            }
+
+            response.append(tempSerial.readAll());
+        }
+
+        // Accept either valid response.
+        if (expectedResponses.contains(response))
+        {
+            const QString detectedPort = info.portName();
+
+            tempSerial.close();
+
+            qDebug() << "[SUCCESS] Device detected on:"
+                     << detectedPort;
+
+            qDebug() << "========== AUTO DETECTION SUCCESS ==========\n";
+
+            return detectedPort;
+        }
+
+        if (response.isEmpty())
+        {
+            qDebug() << "[WARN] No response on" << info.portName();
+        }
+        else
+        {
+            qDebug() << "[WARN] Invalid response on"
+                     << info.portName()
+                     << ":" << response.toHex(' ').toUpper();
+        }
+
+        tempSerial.close();
+    }
+
+    qDebug() << "[FAIL] Device not detected on any available port";
+    qDebug() << "========== DEVICE AUTO DETECTION END ==========\n";
+
+    return QString();
+}
+
 void TestController::startTwoWireTransmission(
         const QByteArray &startPacket,
         const QVector<QByteArray> &packets)
@@ -1294,7 +1407,14 @@ void TestController::startRelayTransmission(
     emit executeWriteToNotes("Relay START packet sent");
     emit executeWriteToNotes(
         QString("Relay START HEX: %1")
-            .arg(QString(startPacket.toHex(' ').toUpper())));
+                .arg(QString(startPacket.toHex(' ').toUpper())));
+}
+
+void TestController::skipRelayResultRows(int count)
+{
+    m_relayResultIndex =
+        qMin(m_relayResultIndex + count,
+             m_relayExpectedResults);
 }
 
 
@@ -1613,6 +1733,35 @@ void TestController::onReadyRead()
         while (m_twoWireResults.size() < expectedResults &&
                buffer.size() >= 4)
         {
+
+            // --------------------------------------------------------
+            // Check 24 24 24 24 failure condition
+            // --------------------------------------------------------
+            if (quint8(buffer[0]) == 0x24 &&
+                quint8(buffer[1]) == 0x24 &&
+                quint8(buffer[2]) == 0x24 &&
+                quint8(buffer[3]) == 0x24)
+            {
+                qDebug() << "Two Wire Test Failed: 24 Condition Hits";
+
+                emit executeWriteToNotes(
+                    "Two Wire Test Failed: 24 Condition Hits");
+
+                // Stop the test and reset controller state
+                abortCommand();
+
+                // Clear remaining received data
+                buffer.clear();
+
+                QMessageBox::critical(
+                    nullptr,
+                    "Two Wire Test Failed",
+                    "Test Failed: 24 Condition Hits"
+                );
+
+                return;
+            }
+
             QByteArray floatBytes = buffer.left(4);
 
             float value = 0.0f;
@@ -1672,6 +1821,8 @@ void TestController::onReadyRead()
         return;
     }
 
+
+
     // =====================================================
     // RELAY RESULT RECEPTION
     // =====================================================
@@ -1679,73 +1830,116 @@ void TestController::onReadyRead()
     if (m_waitingForRelayResults)
     {
         const QByteArray endMarker = "ABCDE";
-
-        // Number of results expected from the Relay test
         const int expectedResults = m_relayExpectedResults;
 
-        // --------------------------------------------------------
-        // Receive results
-        // --------------------------------------------------------
-        while (m_relayResultIndex < expectedResults &&
-               buffer.size() >= 4)
+        while (m_relayResultIndex < expectedResults)
         {
-            QByteArray floatBytes = buffer.left(4);
+            // ------------------------------------------------
+            // 1. NACK + binary relay ID
+            // ------------------------------------------------
+            if (buffer.startsWith("NACK"))
+            {
+                // Four ASCII bytes plus one binary ID byte
+                if (buffer.size() < 5)
+                    return;
 
-            quint32 bits =
-                    (quint32(quint8(floatBytes[0])) << 24) |
-                    (quint32(quint8(floatBytes[1])) << 16) |
-                    (quint32(quint8(floatBytes[2])) << 8) |
-                     quint32(quint8(floatBytes[3]));
+                const quint8 relayId =
+                    static_cast<quint8>(buffer[4]);
+
+                const int currentResultIndex =
+                    m_relayResultIndex;
+
+                buffer.remove(0, 5);
+
+                qDebug() << "Relay NACK received"
+                         << "Hardware ID:" << relayId
+                         << "Result index:" << currentResultIndex;
+
+                emit executeWriteToNotes(
+                    QString("Relay NACK received. Hardware ID: %1")
+                        .arg(relayId));
+
+                // Pass the raw zero-based hardware ID.
+                emit relayNackReceived(
+                    relayId, currentResultIndex);
+
+                continue;
+            }
+
+            // Wait for at least four bytes for a float.
+            if (buffer.size() < 4)
+                return;
+
+            // ------------------------------------------------
+            // 2. Check 24 24 24 24 failure condition
+            // ------------------------------------------------
+            if (quint8(buffer[0]) == 0x24 &&
+                quint8(buffer[1]) == 0x24 &&
+                quint8(buffer[2]) == 0x24 &&
+                quint8(buffer[3]) == 0x24)
+            {
+                qDebug() << "Relay Test Failed: 24 Condition Hits";
+
+                emit executeWriteToNotes(
+                    "Relay Test Failed: 24 Condition Hits");
+
+                abortCommand();
+                buffer.clear();
+
+                QMessageBox::critical(
+                    nullptr,
+                    "Relay Test Failed",
+                    "Test Failed: 24 Condition Hits");
+
+                return;
+            }
+
+            // ------------------------------------------------
+            // 3. Parse little-endian float
+            // ------------------------------------------------
+            const QByteArray floatBytes = buffer.left(4);
+
+            const quint32 bits =
+                    (quint32(quint8(floatBytes[3])) << 24) |
+                    (quint32(quint8(floatBytes[2])) << 16) |
+                    (quint32(quint8(floatBytes[1])) << 8)  |
+                     quint32(quint8(floatBytes[0]));
 
             float value = 0.0f;
-
-            memcpy(&value,
-                   &bits,
-                   sizeof(float));
+            memcpy(&value, &bits, sizeof(float));
 
             buffer.remove(0, 4);
 
-            int resultIndex = m_relayResultIndex++;
+            const int resultIndex = m_relayResultIndex++;
 
             qDebug() << "Relay Result:"
-                     << resultIndex + 1
-                     << value;
+                     << resultIndex + 1 << value;
 
             emit executeWriteToNotes(
                 QString("Relay Result %1 : %2")
                     .arg(resultIndex + 1)
                     .arg(value));
 
-            // LIVE TABLE UPDATE
-            emit relayResultReceived(
-                resultIndex,
-                value);
+            emit relayResultReceived(resultIndex, value);
         }
 
-        // --------------------------------------------------------
-        // All expected results received.
-        // Now wait for ABCDE.
-        // --------------------------------------------------------
-        if (m_relayResultIndex == expectedResults)
+        // ----------------------------------------------------
+        // 4. Wait for ABCDE after expected results
+        // ----------------------------------------------------
+        const int endIndex = buffer.indexOf(endMarker);
+
+        if (endIndex >= 0)
         {
-            int endIndex = buffer.indexOf(endMarker);
+            buffer.remove(0, endIndex + endMarker.size());
 
-            if (endIndex >= 0)
-            {
-                buffer.remove(
-                    0,
-                    endIndex + endMarker.size());
+            m_waitingForRelayResults = false;
 
-                m_waitingForRelayResults = false;
+            emit executeWriteToNotes(
+                "Relay Result Transmission Completed");
 
-                emit executeWriteToNotes(
-                    "Relay Result Transmission Completed");
+            qDebug() << "ABCDE received - Relay result reception complete";
 
-                qDebug()
-                    << "ABCDE received - Relay result reception complete";
-
-                emit relayResultsCompleted();
-            }
+            emit relayResultsCompleted();
         }
 
         return;
@@ -1758,6 +1952,34 @@ void TestController::onReadyRead()
 
     if (m_waitingForDiodeResults)
     {
+
+        // --------------------------------------------------------
+        // Check 24 24 24 24 failure condition
+        // --------------------------------------------------------
+        if (buffer.size() >= 4 &&
+            quint8(buffer[0]) == 0x24 &&
+            quint8(buffer[1]) == 0x24 &&
+            quint8(buffer[2]) == 0x24 &&
+            quint8(buffer[3]) == 0x24)
+        {
+            qDebug() << "Diode Test Failed: 24 Condition Hits";
+
+            emit executeWriteToNotes(
+                "Diode Test Failed: 24 Condition Hits");
+
+            abortCommand();
+
+            buffer.clear();
+
+            QMessageBox::critical(
+                nullptr,
+                "Diode Test Failed",
+                "Test Failed: 24 Condition Hits"
+            );
+
+            return;
+        }
+
         const QByteArray endMarker = "ABCDE";
 
         // Check whether the test terminator has arrived.
@@ -1856,6 +2078,35 @@ void TestController::onReadyRead()
 
     if (m_receivingInsulationResults)
     {
+
+        // --------------------------------------------------------
+        // Check 24 24 24 24 failure condition
+        // --------------------------------------------------------
+        if (buffer.size() >= 4 &&
+            quint8(buffer[0]) == 0x24 &&
+            quint8(buffer[1]) == 0x24 &&
+            quint8(buffer[2]) == 0x24 &&
+            quint8(buffer[3]) == 0x24)
+        {
+            qDebug() << "Insulation/Isolation Test Failed:"
+                     << "24 Condition Hits";
+
+            emit executeWriteToNotes(
+                "Insulation/Isolation Test Failed: 24 Condition Hits");
+
+            abortCommand();
+
+            buffer.clear();
+
+            QMessageBox::critical(
+                nullptr,
+                "Insulation/Isolation Test Failed",
+                "Test Failed: 24 Condition Hits"
+            );
+
+            return;
+        }
+
         const QByteArray netMarker = QByteArray::fromHex("2F2F");
         const QByteArray loomEndMarker = QByteArray::fromHex("FF00");
         const QByteArray failedMarker = QByteArray::fromHex("2E2E");
