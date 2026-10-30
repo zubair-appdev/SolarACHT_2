@@ -2117,6 +2117,7 @@ QString MainWindow::convertExcelToCsv(const QString &xlsxFile)
 void MainWindow::on_pushButton_backToModes_clicked()
 {
     QString cableName = ui->lineEdit_cableName->text().trimmed();
+    qDebug()<<cableName<<"cable name";
 
     if (!cableName.isEmpty())
     {
@@ -2126,20 +2127,28 @@ void MainWindow::on_pushButton_backToModes_clicked()
         QString harnessTable = cableName + "_harness";
         QString detailsTable = cableName + "_details";
 
+        QStringList existingTables = db.tables();
+
         QStringList missingTables;
 
-        if (!db.tables().contains(patchTable))
+        if (!existingTables.contains(patchTable, Qt::CaseInsensitive))
             missingTables.append("Patch data");
 
-        if (!db.tables().contains(harnessTable))
+        if (!existingTables.contains(harnessTable, Qt::CaseInsensitive))
             missingTables.append("Harness data");
 
-        if (!db.tables().contains(detailsTable))
+        if (!existingTables.contains(detailsTable, Qt::CaseInsensitive))
             missingTables.append("Add MetaData");
 
         if (missingTables.isEmpty())
         {
             ui->stackedWidget->setCurrentIndex(4);
+            ui->lineEdit_cableName->clear();
+            ui->lineEdit_imagePath->clear();
+            ui->textEdit_notes->clear();
+            ui->lineEdit_inspectedByInput->clear();
+            ui->lineEdit_projectNameInput->clear();
+
         }
         else
         {
@@ -2156,6 +2165,7 @@ void MainWindow::on_pushButton_backToModes_clicked()
             {
                   deleteCable(cableName);
                   ui->stackedWidget->setCurrentIndex(4);
+                  ui->lineEdit_cableName->clear();
             }
         }
     }
@@ -8728,22 +8738,22 @@ void MainWindow::drawCalibrateTable(
             QColor background = Qt::transparent;
             QFont cellFont = normalFont;
 
-//            // Result column: Pass / Fail
-//            if (c == 7)
-//            {
+            // Result column: Pass / Fail
+            if (c == 7)
+            {
 //                if (value.compare(
 //                            "Pass", Qt::CaseInsensitive) == 0)
 //                {
 //                    background = QColor(144, 238, 144);
 //                    cellFont = boldFont;
 //                }
-//                else if (value.compare(
-//                                 "Fail", Qt::CaseInsensitive) == 0)
-//                {
-//                    background = QColor(255, 127, 127);
-//                    cellFont = boldFont;
-//                }
-//            }
+                if (value.compare(
+                                 "Fail", Qt::CaseInsensitive) == 0)
+                {
+                    background = QColor(255, 127, 127);
+                    cellFont = boldFont;
+                }
+            }
 
             QRectF cell(
                         x,
@@ -9603,21 +9613,21 @@ void MainWindow::drawInsoIsoTable(
             QFont cellFont = normalFont;
 
             // Result column: Pass / Fail
-//            if (c == 7)
-//            {
+            if (c == 7)
+            {
 //                if (value.compare(
 //                            "Pass", Qt::CaseInsensitive) == 0)
 //                {
 //                    background = QColor(144, 238, 144);
 //                    cellFont = boldFont;
 //                }
-//                else if (value.compare(
-//                                 "Fail", Qt::CaseInsensitive) == 0)
-//                {
-//                    background = QColor(255, 127, 127);
-//                    cellFont = boldFont;
-//                }
-//            }
+                if (value.compare(
+                                 "Fail", Qt::CaseInsensitive) == 0)
+                {
+                    background = QColor(255, 127, 127);
+                    cellFont = boldFont;
+                }
+            }
 
             QRectF cell(
                         x,
@@ -10135,21 +10145,21 @@ void MainWindow::drawDiodeTestTable(
             QFont cellFont = normalFont;
 
             // Result column: Pass / Fail
-//            if (c == 7)
-//            {
+            if (c == 7)
+            {
 //                if (value.compare(
 //                            "Pass", Qt::CaseInsensitive) == 0)
 //                {
 //                    background = QColor(144, 238, 144);
 //                    cellFont = boldFont;
 //                }
-//                else if (value.compare(
-//                                 "Pass", Qt::CaseInsensitive) != 0)
-//                {
-//                    background = QColor(255, 127, 127);
-//                    cellFont = boldFont;
-//                }
-//            }
+                if (value.compare(
+                                 "Pass", Qt::CaseInsensitive) != 0)
+                {
+                    background = QColor(255, 127, 127);
+                    cellFont = boldFont;
+                }
+            }
 
             QRectF cell(
                         x,
@@ -10379,21 +10389,21 @@ void MainWindow::drawTwoWireTestTable(
             QFont cellFont = normalFont;
 
             // Result column: Pass / Fail
-//            if (c == 8)
-//            {
+            if (c == 8)
+            {
 //                if (value.compare(
 //                            "Pass", Qt::CaseInsensitive) == 0)
 //                {
 //                    background = QColor(144, 238, 144);
 //                    cellFont = boldFont;
 //                }
-//                else if (value.compare(
-//                                 "Fail", Qt::CaseInsensitive) == 0)
-//                {
-//                    background = QColor(255, 127, 127);
-//                    cellFont = boldFont;
-//                }
-//            }
+                if (value.compare(
+                                 "Fail", Qt::CaseInsensitive) == 0)
+                {
+                    background = QColor(255, 127, 127);
+                    cellFont = boldFont;
+                }
+            }
 
             QRectF cell(
                         x,
@@ -10483,20 +10493,25 @@ void MainWindow::drawTwoWireTestFooter(
 
     y += notesHeight + 70;
 
+    qreal margin = 20;
+    qreal printableWidth = pageWidth - (2 * margin);
+    qreal columnWidth = printableWidth / 3;
+
     painter.drawText(
-        QRectF(20, y, (pageWidth-40) / 3, 20),
+       QRectF(margin, y, columnWidth, 20),
         Qt::AlignLeft,
         ui->lineEdit_performedBy->text());
 
-    painter.drawText(
-        QRectF((pageWidth-40) / 3, y, pageWidth / 3, 20),
-        Qt::AlignHCenter,
-        "");
+//    painter.drawText(
+//        QRectF((pageWidth-40) / 3, y, pageWidth / 3, 20),
+//        Qt::AlignHCenter,
+//        "");
+
 
     painter.drawText(
-        QRectF(2 * (pageWidth-40) / 3, y, pageWidth / 3, 20),
-        Qt::AlignRight,
-        ui->lineEdit_inspectedBy->text());
+                QRectF(margin + 2 * columnWidth, y, columnWidth, 20),
+                Qt::AlignLeft,
+                ui->lineEdit_inspectedBy->text());
     y+=20;
 
 
@@ -10505,21 +10520,22 @@ void MainWindow::drawTwoWireTestFooter(
     painter.setPen(Qt::black);
 
 
-    painter.drawText(
-        QRectF(20, y, (pageWidth-40) / 3, 20),
-        Qt::AlignLeft,
-        "Test Performed By:");
+
 
     painter.drawText(
-        QRectF((pageWidth-40) / 3, y, pageWidth / 3, 20),
+        QRectF(margin, y, columnWidth, 20),
+        Qt::AlignLeft,
+        ui->label_performedBy->text());
+
+    painter.drawText(
+        QRectF(margin + columnWidth, y, columnWidth, 20),
         Qt::AlignHCenter,
         "Prod. In-Charge");
 
     painter.drawText(
-        QRectF(2 * (pageWidth-40) / 3, y, pageWidth / 3, 20),
-        Qt::AlignRight,
-        "Inspected By:");
-
+        QRectF(margin + 2 * columnWidth, y, columnWidth, 20),
+        Qt::AlignLeft,
+        ui->label_inspectedBy->text());
     // Page number on the final page
     painter.drawText(
         QRectF(0, pageHeight - 25, pageWidth, 15),
@@ -11419,21 +11435,21 @@ void MainWindow::drawRelayTestTable(
             QFont cellFont = normalFont;
 
             // Result column: Pass / Fail
-//            if (c == 12)
-//            {
+            if (c == 12)
+            {
 //                if (value.compare(
 //                            "Pass", Qt::CaseInsensitive) == 0)
 //                {
 //                    background = QColor(144, 238, 144);
 //                    cellFont = boldFont;
 //                }
-//                else if (value.compare(
-//                                 "Pass", Qt::CaseInsensitive) != 0)
-//                {
-//                    background = QColor(255, 127, 127);
-//                    cellFont = boldFont;
-//                }
-//            }
+                if (value.compare(
+                                 "Pass", Qt::CaseInsensitive) != 0)
+                {
+                    background = QColor(255, 127, 127);
+                    cellFont = boldFont;
+                }
+            }
 
             QRectF cell(
                         x,
@@ -11835,9 +11851,11 @@ void MainWindow::on_comboBox_files_currentTextChanged(const QString &arg1)
                 q.value("test_performed_by").toString();
         d_inspectedBy =
                 q.value("inspected_by").toString();
+
+
         ui->lineEdit_projectName->setText(d_projectName);
-        ui->lineEdit_inspectedBy->setText(d_inspectedBy);
-        ui->lineEdit_performedBy->setText(d_testPerformedBy);
+        ui->label_inspectedBy->setText(d_inspectedBy);
+        ui->label_performedBy->setText(d_testPerformedBy);
         ui->textEdit_notesOutput->setPlainText(d_notes);
         QPixmap pixmap;
 
